@@ -1,0 +1,63 @@
+## command set
+
+# left joystick
+CMD_SET_POWER_LIFT, power, steering
+
+# right joystick
+CMD_SET_DRIVE, power, steering
+
+# v slider (updates power)
+CMD_SET_POWER_MAIN, power, steering
+
+# h slider (updates steering)
+CMD_SET_POWER_MAIN, power, steering
+
+
+## all commands
+
+#define CMD_SET_POWER_RAW 1
+#define CMD_SET_DRIVE 2
+#define CMD_SET_POWER_DS 3
+#define CMD_TAKE_OFF 4
+#define CMD_LAND 5
+
+#define CMD_SET_POWER_MAIN 6
+#define CMD_SET_POWER_LIFT 7
+
+#define CMD_EMERGENCY_STOP 10
+
+#define CMD_SET_SERVO_1 21
+#define CMD_SET_SERVO_2 22
+
+#define CMD_ESC_PROGRAM_HIGH 31
+#define CMD_ESC_PROGRAM_LOW 30
+
+#define CMD_FLYMODE_NEXT 101
+#define CMD_SET_TEST_MODE 102
+#define CMD_CLEAR_TEST_MODE 103
+
+
+#define CMD_SET_PUSHMODE 200
+#define CMD_REQUEST_STATUS 201
+#define CMD_REQUEST_SENSORS 202
+#define CMD_REQUEST_COM 203
+#define CMD_REQUEST_SETTINGS 205
+#define CMD_REQUEST_ALL_SETTINGS 206
+
+#define CMD_UPDATE_SETTINGS 105
+#define CMD_SAVE_SETTINGS 106
+#define CMD_RESET_DEFAULTS 107
+#define CMD_CALIBRATE_SENSORS 108
+#define CMD_READ_EEPROM_SETTINGS 109
+#define CMD_SET_SERVO_BIAS 110
+#define CMD_RESET 111
+#define CMD_CALIBRATE_GYRO 121
+#define CMD_CALIBRATE_COMPASS 122
+
+#define CMD_SET_GPOS_HOLD_MODE 131
+#define CMD_CLEAR_GPOS_HOLD_MODE 132
+#define CMD_SET_HEADING_HOLD_MODE 133
+#define CMD_CLEAR_HEADING_HOLD_MODE 134
+
+
+
