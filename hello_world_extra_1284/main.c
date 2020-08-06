@@ -3,6 +3,7 @@
 #include <avr/interrupt.h>
 #include <avr/wdt.h>
 #include "serial_parser_c.h"
+#include "ads1115.h"
 
 #define DDR_TEST DDRA
 #define PORT_TEST PORTA
@@ -60,6 +61,21 @@ void onparse(int cmd, long *data, int ndata)
         // data[0] is cmd
         break;
     }
+}
+
+void check_adc_module()
+{
+  uint16_t adc_val[4];
+
+  uint8_t ready = sweep_read_noblock(adc_val);
+  if (ready)
+  {
+
+    // resistor divider R1 = 6k8, R2 = 1k
+    bat1 = to_volts(adc_val[0]) * 7.8;    
+    // avem doar o baterie
+    // bat2 = to_volts(adc_val[1]) * 7.8;
+  }
 }
 
 void loop()
