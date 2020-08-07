@@ -1,0 +1,14 @@
+atmega1284 playground
+
+30.06.2020
+setup, programare, putty, bluetooth
+
+13.07.2020
+experimentare IMU, servo, app
+
+1) poti controla servomotorul folosind senzorul IMU in mai multe moduri (calculezi unghiul de rotatie folosind accelerometrul si giroscopul integrat, sau mai simplu poti incerca doar cu accelerometru/giroscop pt inceput)
+1.1) este si pe repo o biblioteca pt mpu6050    
+2) am un app pe care l-am facut pt drona, si ti-l pot da, sa vezi daca se poate folosi si pt submarin (aici pe partea de rx pe seriala, cu comenzi in format csv)
+3) [parts needed] de gandit la un mod prin care se poate detecta adancimea (am vazut niste senzori cu ultrasunete waterproof, si am deja cativa care nu sunt waterproof - hc-sr04 dar functioneaza pe acelasi principiu, timere la greu)
+3.1) poti incerca sa cronometrezi impulsurile date la servo-uri ca si cand ar veni de la senzorul cu ultrasunete (for a start)
+4) poti lucra direct pe repo, cu push/pull, si poti incepe un schelet de proiect

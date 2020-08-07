@@ -1,0 +1,8 @@
+ACS711EX (senzor curent)
+https://www.pololu.com/product/2453
+
+HC-SR04 (sonar standard)
+https://dronebotworkshop.com/hc-sr04-ultrasonic-distance-sensor-arduino/
+
+JSN-SR04 (sonar waterproof)
+https://www.makerguides.com/jsn-sr04t-arduino-tutorial/
