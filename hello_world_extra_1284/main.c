@@ -28,7 +28,9 @@ char msg[100];
 
 double bat1;
 double current;
-volatile float err_roll,err_pitch, err_yaw;
+volatile double err_roll, err_pitch, err_yaw;
+
+double roll, pitch, yaw;
 
 #define N_MOTORS 1
 #define N_SERVOS 2
@@ -48,9 +50,9 @@ void init_mpu_timer()
     TCCR0A = 0;
     TCNT0 = 0;
     //CTC with TOP at OCR0A
-    TCCR0A |= (1<<WGM01); 
+    TCCR0A |= (1 << WGM01);
     //prescaler 256
-    TCCR0B |= (1<<CS02);
+    TCCR0B |= (1 << CS02);
     //enable the interrupt
     TIMSK0 = (1 << OCIE1A);
     USART0_print("done initializing timer\r\n");
@@ -58,7 +60,7 @@ void init_mpu_timer()
 
 void init_adc()
 {
-    DDRA &= ~(1<<PA0);
+    DDRA &= ~(1 << PA0);
 
     ADMUX = 0;
     ADMUX |= (1 << REFS0);
@@ -93,20 +95,22 @@ ISR(TIMER0_COMPA_vect)
     sw_mpu_read_trigger++;
     sw_mpu_write_angles++;
 
-    if(sw_mpu_read_trigger == 5){
+    if (sw_mpu_read_trigger == 5)
+    {
         mpu_state = 1;
         sw_mpu_read_trigger = 0;
     }
 
-    if(sw_mpu_write_angles==250) {
-        PORT_TEST ^= (1<<PIN_TEST);
+    if (sw_mpu_write_angles == 50)
+    {
+        PORT_TEST ^= (1 << PIN_TEST);
         mpu_write_state = 1;
-        sw_mpu_write_angles=0;
+        sw_mpu_write_angles = 0;
     }
 }
 
-int servo_pos=500;
-int esc_pos=1000;
+int servo_pos = 500;
+int esc_pos = 1000;
 /*
  * 0 - aripi
  * 1 - carma
@@ -165,7 +169,6 @@ void setup()
     init_adc();
 
     opperation_mode = NORMAL_MODE;
-
 }
 
 #define CARMA 7
@@ -178,52 +181,55 @@ void setup()
 #define OUT_STATUS 3
 #define OUT_SENSOR_DATA 4
 #define OUT_SETTINGS 5
-void append_float(char *dest, float data) {
+void append_float(char *dest, float data)
+{
     int nr = (int)data;
-    
-    if(data < 0)
-        sprintf(msg,",%d.%d",nr, nr*100 - (int)(data*100));
+
+    if (data < 0)
+        sprintf(msg, ",%d.%d", nr, nr * 100 - (int)(data * 100));
     else
-        sprintf(msg,",%d.%d",nr, (int)(data*100) - nr*100);
+        sprintf(msg, ",%d.%d", nr, (int)(data * 100) - nr * 100);
 
-    strcat(dest,msg);
-}
-
-void append_command(char *dest, int data) {
-    sprintf(msg,"%d",data);
     strcat(dest, msg);
 }
 
-void append_int(char *dest, int data) {
-    sprintf(msg,",%d",data);
+void append_command(char *dest, int data)
+{
+    sprintf(msg, "%d", data);
+    strcat(dest, msg);
+}
+
+void append_int(char *dest, int data)
+{
+    sprintf(msg, ",%d", data);
     strcat(dest, msg);
 }
 
 void send_sensors_data()
 {
     char mesaj[64];
-    mesaj[0]=0;
+    mesaj[0] = 0;
 
-    append_command(mesaj,OUT_SENSOR_DATA);
+    append_command(mesaj, OUT_SENSOR_DATA);
 
-    append_int(mesaj,(int)mp_roll);
-    append_int(mesaj,(int)mp_pitch);
-    append_int(mesaj,(int)mp_yaw);
-    append_float(mesaj,0);
-    append_float(mesaj,0);
-    append_float(mesaj,0);
+    append_int(mesaj, (int)roll);
+    append_int(mesaj, (int)pitch);
+    append_int(mesaj, (int)yaw);
+    append_float(mesaj, 0);
+    append_float(mesaj, 0);
+    append_float(mesaj, 0);
     USART0_print(mesaj);
-    mesaj[0]=0;
-    append_float(mesaj,0);
-    append_float(mesaj,current);
-    append_float(mesaj,0);
-    append_float(mesaj,0);
-    append_float(mesaj,0);
-    append_float(mesaj,0);
-    append_float(mesaj,0);
-    append_float(mesaj,bat1);
-    append_float(mesaj,0);
-    strcat(mesaj,"\n");
+    mesaj[0] = 0;
+    append_float(mesaj, 0);
+    append_float(mesaj, current);
+    append_float(mesaj, 0);
+    append_float(mesaj, 0);
+    append_float(mesaj, 0);
+    append_float(mesaj, 0);
+    append_float(mesaj, 0);
+    append_float(mesaj, bat1);
+    append_float(mesaj, 0);
+    strcat(mesaj, "\n");
     USART0_print(mesaj);
 }
 
@@ -231,18 +237,18 @@ void send_motors_data()
 {
     char mesaj[64];
     uint8_t i;
-    mesaj[0]=0;
-    append_command(mesaj,OUT_MOTOR_DATA);
+    mesaj[0] = 0;
+    append_command(mesaj, OUT_MOTOR_DATA);
 
     append_int(mesaj, N_MOTORS);
     append_int(mesaj, N_SERVOS);
-    for( i = 0; i < N_MOTORS; i++)
-        append_float(mesaj, ((float)poz_motors[i] - 1000)/2000 ) ;
+    for (i = 0; i < N_MOTORS; i++)
+        append_float(mesaj, ((float)poz_motors[i] - 1000) / 2000);
 
-    for( i = 0; i < N_SERVOS; i++)
-        append_float(mesaj, ((float)poz_servos[i]- 500)/2200 );
+    for (i = 0; i < N_SERVOS; i++)
+        append_float(mesaj, ((float)poz_servos[i] - 500) / 2200);
 
-    strcat(mesaj,"\n");
+    strcat(mesaj, "\n");
     USART0_print(mesaj);
 }
 
@@ -265,15 +271,15 @@ void onparse(int cmd, long *data, int ndata)
         // data[0] is cmd
         break;
     case WING_FLAPS:
-        poz_servos[0] =  data[1]*17/2 + 1350;
-        servo_set_cmd(0,poz_servos[0]);
+        poz_servos[0] = data[1] * 17 / 2 + 1350;
+        servo_set_cmd(0, poz_servos[0]);
         break;
     case SINK_ANGLE:
         sink_angle = data[2];
         break;
     case CARMA:
-        poz_servos[1] =  data[2]*17/2 + 1350;
-        poz_motors[0] = (data[1]<0?0:data[1])*5 + 1000;
+        poz_servos[1] = data[2] * 17 / 2 + 1350;
+        poz_motors[0] = (data[1] < 0 ? 0 : data[1]) * 5 + 1000;
         servo_set_cmd(1, poz_servos[1]);
         servo_set_cmd(2, poz_motors[0]);
         break;
@@ -293,7 +299,7 @@ void check_adc_module()
     uint8_t ready = sweep_read_noblock(&adc_val);
     if (ready)
         // resistor divider R1 = 6k8, R2 = 1k
-        bat1 = 0.9*bat1 + 0.1*(to_volts(adc_val) * 7.8);    
+        bat1 = 0.9 * bat1 + 0.1 * (to_volts(adc_val) * 7.8);
 }
 
 void read_adc()
@@ -309,44 +315,54 @@ void loop()
     // check for incoming data via USART0
 
     check_com(&onparse);
-    
-    if( mpu_state == 1) 
+
+    if (mpu_state == 1)
     {
         check_adc_module();
         read_adc();
-        current = 0.9* current + (float)adc_value*7.33/1024 - 3.67;
+        current = 0.9 * current + (float)adc_value * 7.33 / 1024 - 3.67;
         //current = 0.9 * current + 0.1 * ( (float)adc_value *5 / 1024);
         mpu6050_v2_read();
         mp6050_correct_errors();
         mp6050_compute_angles();
+        
+        roll = mp_roll;
+        pitch = mp_pitch;
+        yaw = mp_yaw;
+
         mpu_state = 0;
-        if(nr<100)
+        if (nr < 100)
         {
-            err_roll += mp_roll;
-            err_pitch += mp_pitch;
-            err_yaw += mp_yaw;
+            err_roll += roll;
+            err_pitch += pitch;
+            err_yaw += yaw;
             nr++;
         }
-        if(nr==100){
+        else if (nr == 100)
+        {
             USART0_print("fac treabaaaa\r\n");
-            err_roll /=100;
-            err_pitch /=100;
-            err_yaw /=100;
+            err_roll /= 100;
+            err_pitch /= 100;
+            err_yaw /= 100;
             nr++;
+        }
+        else
+        {
+            roll = roll - err_roll;
+            pitch = pitch - err_pitch;
+            yaw = yaw - err_yaw;
         }
     }
-    
 
-    if( mpu_write_state == 1) {
-        mp_roll = mp_roll - err_roll;
-        mp_pitch = mp_pitch - err_pitch;
-        mp_yaw = mp_yaw - err_yaw;
-        sprintf(msg,"%.3f  %.3f  %.3f   %.3f %.3f %.3f\r\n",mp_roll,mp_pitch,mp_yaw,err_roll, err_pitch, err_yaw);
-        USART0_print(msg);        
+    if (mpu_write_state == 1)
+    {
+        sprintf(msg, "%.3f\t%.3f\t%.3f\t%.3f\t%.3f\t%.3f\r\n", roll, pitch, yaw, err_roll, err_pitch, err_yaw);
+        USART0_print(msg);
         mpu_write_state = 0;
     }
 
-    if(opperation_mode == ASSISTED_SINK_MODE) {
+    if (opperation_mode == ASSISTED_SINK_MODE)
+    {
         //add logic for assisted sink
     }
 }
