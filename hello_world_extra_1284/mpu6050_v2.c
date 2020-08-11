@@ -1,9 +1,12 @@
 
+#include "math.h"
 #include "mpu6050_v2.h"
+#include <stdio.h>
 
 float ax, ay, az;
 float gx, gy, gz;
 int16_t rawAccX, rawAccY, rawAccZ, rawTemp, rawGyroX, rawGyroY, rawGyroZ;
+float mp_roll, mp_pitch, mp_yaw;
 float temperature;
 
 uint8_t accel_range, gyro_range;
@@ -201,4 +204,95 @@ int8_t mpu6050_v2_getConvData(double *axg, double *ayg, double *azg, double *gxd
     *gzds = (double)gz;
 
     return 1;
+}
+
+void mp6050_read_errors() {
+    char msg[40];
+    double eax,eay,eaz,egx,egy,egz;
+    int c=0;
+    eax=eay=eaz=egx=egy=egz=0;
+
+    while(c<200){
+        mpu6050_v2_read();
+       
+        c++;
+
+        eax+=ax;
+        eay+=ay;
+        eaz+=az;
+        egx+=gx;
+        egy+=gy;
+        egz+=gz;
+
+        _delay_ms(500);
+    }
+
+    eax/=200;
+    eay/=200;
+    eaz/=200;
+    egx/=200;
+    egy/=200;
+    egz/=200;
+}
+
+#define EEPROM_SENTINEL 0xFA
+float err_ax = 0.502,err_ay = -0.025,err_az = 0.055;
+float err_gx = 2.213,err_gy = -0.279,err_gz = 0.077;
+
+void mp6050_write_errors()
+{
+    eeprom_write_dword((uint32_t*)1,err_ax);
+    eeprom_write_dword((uint32_t*)5,err_ay);
+    eeprom_write_dword((uint32_t*)9,err_az);
+    eeprom_write_dword((uint32_t*)13,err_gx);
+    eeprom_write_dword((uint32_t*)17,err_gy);
+    eeprom_write_dword((uint32_t*)21,err_gz);
+}
+
+void mp6050_initialize_errors() 
+{
+    unsigned char sentinel;
+
+    sentinel = eeprom_read_byte(0);
+    char msg[40];
+    if( sentinel == EEPROM_SENTINEL) {
+        err_ax = eeprom_read_dword((const uint32_t*)1);
+        err_ay = eeprom_read_dword((const uint32_t*)5);
+        err_az = eeprom_read_dword((const uint32_t*)9);
+        err_gx = eeprom_read_dword((const uint32_t*)13);
+        err_gy = eeprom_read_dword((const uint32_t*)17);
+        err_gz = eeprom_read_dword((const uint32_t*)21);
+    }
+    
+}
+
+void mp6050_correct_errors(){
+    // ax -= err_ax;
+    // ay -= err_ay;
+    // az -= err_az;
+    gx -= err_gx;
+    gy -= err_gy;
+    gz -= err_gz;
+}
+
+#define SUB_DELTA 0.001
+float angle_alpha = 0.96;
+float gyro_factor = 1;
+float dt=0.02;
+
+void mp6050_compute_angles()
+{
+    float ac_pitch, ac_roll, den;
+
+    den = sqrt( ay * ay + ax * ax);
+    if (den < SUB_DELTA) den = SUB_DELTA;
+    ac_pitch = -atan2(az,den);
+
+    den = sqrt( az * az + ax * ax);
+    if (den < SUB_DELTA) den = SUB_DELTA;
+    ac_roll = atan2(ay,den);
+        
+    mp_pitch = (mp_pitch + -gy * gyro_factor * dt) * angle_alpha + ac_pitch * GRAD * (1 - angle_alpha);
+    mp_roll = (mp_roll + -gz * gyro_factor * dt) * angle_alpha + ac_roll * GRAD * (1 - angle_alpha);
+    mp_yaw = (mp_yaw + gx * gyro_factor * dt);   
 }

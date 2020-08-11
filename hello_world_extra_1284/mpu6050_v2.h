@@ -9,6 +9,7 @@
 #include <string.h>
 #include <avr/pgmspace.h>
 #include <avr/interrupt.h>
+#include <avr/eeprom.h>
 #include <util/delay.h>
 #include "serial.h"
 
@@ -154,7 +155,8 @@ extern "C"
 
     extern float ax, ay, az;
     extern float gx, gy, gz;
-    extern int16_t rawAccX, rawAccY, rawAccZ, rawTemp, rawGyroX, rawGyroY, rawGyroZ;
+    extern int16_t rawAccX, rawAccY, rawAccZ, rawTemp, rawGyroX, rawGyroY, rawGyroZ;    
+    extern float mp_roll, mp_pitch, mp_yaw;
     extern float temperature;
 
     extern uint8_t accel_range, gyro_range;
@@ -177,6 +179,11 @@ extern "C"
     void setGyroRange(mpu6050_gyro_range_t val);
     uint8_t getAccelerometerRange();
     void setAccelerometerRange(mpu6050_accel_range_t val);
+
+    void mp6050_read_errors();
+    void mp6050_initialize_errors();
+    void mp6050_correct_errors();
+    void mp6050_compute_angles();
 
 #ifdef __cplusplus
 }

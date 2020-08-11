@@ -1,7 +1,7 @@
 # PORT ?= /dev/ttyUSB0
-PORT ?= COM13
-# CFLAGS=-Wl,-u,vfprintf -lprintf_flt -lm
-CFLAGS=-lc -lm
+PORT ?= COM4
+CFLAGS=-Wl,-u,vfprintf -lprintf_flt -lm -lc
+# CFLAGS=-lc -lm
 
 GCCFLAGS=-g -Os -Wall -Wextra -mmcu=atmega1284p 
 LINKFLAGS=-Wl,-u,vfprintf -lprintf_flt -Wl,-u,vfscanf -lscanf_flt #-lm
