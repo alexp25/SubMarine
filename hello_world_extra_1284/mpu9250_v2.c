@@ -1,4 +1,5 @@
 
+#include <math.h>
 #include "mpu9250_v2.h"
 
 float mpu9250_ax, mpu9250_ay, mpu9250_az;
@@ -6,6 +7,7 @@ float mpu9250_gx, mpu9250_gy, mpu9250_gz;
 int16_t mpu9250_rawAccX, mpu9250_rawAccY, mpu9250_rawAccZ, mpu9250_rawTemp, mpu9250_rawGyroX, mpu9250_rawGyroY, mpu9250_rawGyroZ;
 float mpu9250_temperature;
 uint8_t mpu9250_accel_range, mpu9250_gyro_range;
+float mp_roll, mp_pitch, mp_yaw;
 
 uint8_t Mscale = MFS_16BITS;                                 // Choose either 14-bit or 16-bit magnetometer resolution
 uint8_t Mmode = 0x02;                                        // 2 for 8 Hz, 6 for 100 Hz continuous magnetometer data read
@@ -362,4 +364,115 @@ int8_t mpu9250_v2_getConvDataMag(double *mx, double *my, double *mz)
     *mx = (double)mpu9250_magX;
     *my = (double)mpu9250_magY;
     *mz = (double)mpu9250_magZ;
+    return 0;
+}
+
+void mpu9250_read_errors() {
+    double eax,eay,eaz,egx,egy,egz;
+    int c=0;
+    eax=eay=eaz=egx=egy=egz=0;
+
+    while(c<200){
+        mpu9250_v2_read();
+       
+        c++;
+
+        eax+=mpu9250_ax;
+        eay+=mpu9250_ay;
+        eaz+=mpu9250_az;
+        egx+=mpu9250_gx;
+        egy+=mpu9250_gy;
+        egz+=mpu9250_gz;
+
+        _delay_ms(500);
+    }
+
+    eax/=200;
+    eay/=200;
+    eaz/=200;
+    egx/=200;
+    egy/=200;
+    egz/=200;
+}
+
+#define EEPROM_SENTINEL 0xFA
+float err_ax = 0.502, err_ay = -0.025, err_az = 0.055;
+float err_gx = 2.213, err_gy = -0.279, err_gz = 0.077;
+float err_mx = 61, err_my = 290, err_mz = -95;
+
+void mpu9250_write_errors()
+{
+    eeprom_write_dword((uint32_t*)1,err_ax);
+    eeprom_write_dword((uint32_t*)5,err_ay);
+    eeprom_write_dword((uint32_t*)9,err_az);
+    eeprom_write_dword((uint32_t*)13,err_gx);
+    eeprom_write_dword((uint32_t*)17,err_gy);
+    eeprom_write_dword((uint32_t*)21,err_gz);
+    eeprom_write_dword((uint32_t*)25,err_mx);
+    eeprom_write_dword((uint32_t*)29,err_my);
+    eeprom_write_dword((uint32_t*)33,err_mz);
+}
+
+void mpu9250_initialize_errors() 
+{
+    unsigned char sentinel;
+
+    sentinel = eeprom_read_byte(0);
+    if( sentinel == EEPROM_SENTINEL) {
+        err_ax = eeprom_read_dword((const uint32_t*)1);
+        err_ay = eeprom_read_dword((const uint32_t*)5);
+        err_az = eeprom_read_dword((const uint32_t*)9);
+        err_gx = eeprom_read_dword((const uint32_t*)13);
+        err_gy = eeprom_read_dword((const uint32_t*)17);
+        err_gz = eeprom_read_dword((const uint32_t*)21);
+        err_mx = eeprom_read_dword((const uint32_t*)24);
+        err_my = eeprom_read_dword((const uint32_t*)29);
+        err_mz = eeprom_read_dword((const uint32_t*)33);
+    }
+    
+}
+
+void mpu9250_correct_errors(){
+    // ax -= err_ax;
+    // ay -= err_ay;
+    // az -= err_az;
+    mpu9250_gx -= err_gx;
+    mpu9250_gy -= err_gy;
+    mpu9250_gz -= err_gz;
+    mpu9250_magX -= err_mx;
+    mpu9250_magY -= err_my;
+    mpu9250_magZ -= err_mz;
+}
+
+#define SUB_DELTA 0.001
+float angle_alpha = 0.96;
+float gyro_factor = 1;
+float dt=0.02;
+
+void mpu9250_compute_angles()
+{
+    float ac_pitch, ac_roll, ac_yaw, den;
+
+    den = sqrt( mpu9250_ay * mpu9250_ay + mpu9250_ax * mpu9250_ax);
+    if (den < SUB_DELTA) den = SUB_DELTA;
+    ac_pitch = -atan2(mpu9250_az,den);
+
+    den = sqrt( mpu9250_az * mpu9250_az + mpu9250_ax * mpu9250_ax);
+    if (den < SUB_DELTA) den = SUB_DELTA;
+    ac_roll = atan2(mpu9250_ay,den);
+
+    ac_yaw = atan2((float)mpu9250_magZ, (float)mpu9250_magX);
+    if (ac_yaw < 0)
+    {
+        ac_yaw += 2 * M_PI;
+    }
+    if (ac_yaw > 2 * M_PI)
+    {
+        ac_yaw -= 2 * M_PI;
+    }
+    mp_yaw = ac_yaw *GRAD; //(mp_yaw + mpu9250_gx * gyro_factor * dt);   
+
+    mp_pitch = (mp_pitch + -mpu9250_gy * gyro_factor * dt) * angle_alpha + ac_pitch * GRAD * (1 - angle_alpha);
+    mp_roll = (mp_roll + -mpu9250_gz * gyro_factor * dt) * angle_alpha + ac_roll * GRAD * (1 - angle_alpha);
+    
 }

@@ -4,7 +4,7 @@
 #include <avr/eeprom.h>
 #include <avr/wdt.h>
 #include "serial_parser_c.h"
-#include "mpu6050_v2.h"
+#include "mpu9250_v2.h"
 #include "twi_arduino.h"
 #include "pwm_servo.h"
 #include "math_utils.h"
@@ -14,6 +14,9 @@
 #define PORT_TEST PORTA
 #define PIN_TEST PA6
 #define PIN_SPK PA7
+
+#define TRIGGER_PIN PB0
+#define ECHO_PIN PB1
 
 #define NORMAL_MODE 0
 #define ASSISTED_SINK_MODE 1
@@ -29,6 +32,7 @@ char msg[100];
 double bat1;
 double current;
 volatile float err_roll,err_pitch, err_yaw;
+float roll,pitch,yaw;
 
 #define N_MOTORS 1
 #define N_SERVOS 2
@@ -39,21 +43,70 @@ void gpio_init()
 {
     DDR_TEST |= (1 << PIN_TEST) | (1 << PIN_SPK);
     PORT_TEST &= ~(1 << PIN_TEST) & ~(1 << PIN_SPK);
+
+    DDRB |= (1 << TRIGGER_PIN);
+    PORTB &= ~(1 << TRIGGER_PIN);
+    DDRB &= ~(1 << ECHO_PIN); 
+    PORTB &= ~(1 << ECHO_PIN);
+
+    //interrupts on the echo pin
+    PCICR |= (1 << PCIE1);
+    PCMSK1 |= (1 << PCINT9);
 }
 
 void init_mpu_timer()
 {
     //250Hz
-    OCR0A = 124;
+    OCR0A = 249;
     TCCR0A = 0;
+    TCCR0B = 0;
     TCNT0 = 0;
     //CTC with TOP at OCR0A
     TCCR0A |= (1<<WGM01); 
     //prescaler 256
     TCCR0B |= (1<<CS02);
     //enable the interrupt
-    TIMSK0 = (1 << OCIE1A);
-    USART0_print("done initializing timer\r\n");
+    TIMSK0 = (1 << OCIE0A);
+}
+
+void init_sonar_timer()
+{
+    OCR2A = 249;
+    TCCR2A = 0;
+    TCCR2B = 0;
+    TCNT2 = 0;
+    //prescaler 32
+    TCCR2B = ( 1 << CS21) | ( 1 << CS20);
+    //CTC with TOP at OCR0A
+    TCCR2A |= (1<<WGM21);
+    //enable the interrupt
+    TIMSK2 = (1 << OCIE2A);
+}
+
+
+volatile int sonar_time;
+volatile double sonar_distance;
+volatile char sonar_wait;
+
+ISR(TIMER2_COMPA_vect) //one interrupt per milisecond
+{
+    if( PINB & ( 1 << ECHO_PIN)) {
+        sonar_time+=500;
+    }
+}
+
+ISR(PCINT1_vect){
+  
+  //daca trece pe 1 incepe o masuratoare
+  if ( PINB & (1 << ECHO_PIN) ){
+    sonar_time = -TCNT2<<1;
+    //prescaler 32
+    //TCCR2B = ( 1 << CS21) | ( 1 << CS20);
+  } else { //altfel o termina
+    sonar_time += TCNT2<<1; //16Mhz , prescaler 32 => 250kHz => 10^6/25*10^4 = 4 us per tick
+    //TCCR2B = 0;
+    sonar_wait = 0;
+  }
 }
 
 void init_adc()
@@ -73,13 +126,13 @@ void init_adc()
 }
 
 volatile uint8_t sw_mpu_read_trigger;
-volatile uint8_t sw_mpu_write_angles;
+volatile uint8_t sw_sonar_activation;
 /*
  * 0 - idle
  * 1 - read data from twi
  */
 volatile uint8_t mpu_state;
-volatile uint8_t mpu_write_state;
+volatile uint8_t sonar_activated;
 volatile uint16_t adc_value;
 
 ISR(ADC_vect)
@@ -91,19 +144,20 @@ ISR(TIMER0_COMPA_vect)
 {
 
     sw_mpu_read_trigger++;
-    sw_mpu_write_angles++;
+    sw_sonar_activation++;
 
     if(sw_mpu_read_trigger == 5){
         mpu_state = 1;
         sw_mpu_read_trigger = 0;
     }
 
-    if(sw_mpu_write_angles==250) {
+    if(sw_sonar_activation==250) {
         PORT_TEST ^= (1<<PIN_TEST);
-        mpu_write_state = 1;
-        sw_mpu_write_angles=0;
+        sonar_activated = 1;
+        sw_sonar_activation=0;
     }
 }
+
 
 int servo_pos=500;
 int esc_pos=1000;
@@ -153,12 +207,11 @@ void setup()
     }
 
     wire_begin();
-    mpu6050_config();
-
-    mp6050_initialize_errors();
-    //mp6050_read_errors();
+    mpu9250_v2_init();
+    mpu9250_initialize_errors();
 
     init_mpu_timer();
+    init_sonar_timer();
 
     initialize_servos();
     init_ads1115();
@@ -206,9 +259,9 @@ void send_sensors_data()
 
     append_command(mesaj,OUT_SENSOR_DATA);
 
-    append_int(mesaj,(int)mp_roll);
-    append_int(mesaj,(int)mp_pitch);
-    append_int(mesaj,(int)mp_yaw);
+    append_int(mesaj,(int)roll);
+    append_int(mesaj,(int)pitch);
+    append_int(mesaj,(int)yaw);
     append_float(mesaj,0);
     append_float(mesaj,0);
     append_float(mesaj,0);
@@ -219,8 +272,8 @@ void send_sensors_data()
     append_float(mesaj,0);
     append_float(mesaj,0);
     append_float(mesaj,0);
-    append_float(mesaj,0);
-    append_float(mesaj,0);
+    append_float(mesaj,yaw);
+    append_float(mesaj,sonar_distance);
     append_float(mesaj,bat1);
     append_float(mesaj,0);
     strcat(mesaj,"\n");
@@ -290,7 +343,7 @@ void check_adc_module()
 {
     uint16_t adc_val;
 
-    uint8_t ready = sweep_read_noblock(&adc_val);
+    uint8_t ready = read_noblock_channel(&adc_val, 0);
     if (ready)
         // resistor divider R1 = 6k8, R2 = 1k
         bat1 = 0.9*bat1 + 0.1*(to_volts(adc_val) * 7.8);    
@@ -302,6 +355,15 @@ void read_adc()
     ADCSRA |= (1 << ADSC);
 }
 
+void compute_sonar_distance() {
+    sonar_wait = 1;        
+    PORTB |= (1 << TRIGGER_PIN);
+    _delay_us(10);
+    PORTB &= ~(1 << TRIGGER_PIN);
+    while(sonar_wait) ;
+
+    sonar_distance = sonar_time * 0.01715;
+}
 int nr;
 
 void loop()
@@ -316,34 +378,41 @@ void loop()
         read_adc();
         current = 0.9* current + (float)adc_value*7.33/1024 - 3.67;
         //current = 0.9 * current + 0.1 * ( (float)adc_value *5 / 1024);
-        mpu6050_v2_read();
-        mp6050_correct_errors();
-        mp6050_compute_angles();
+        mpu9250_v2_read();
+        mpu9250_readMagData();
+        mpu9250_correct_errors();
+        mpu9250_compute_angles();
+        
+        roll = mp_roll;
+        pitch = mp_pitch;
+        yaw = mp_yaw;
+
         mpu_state = 0;
-        if(nr<100)
+        if(nr<200)
         {
-            err_roll += mp_roll;
-            err_pitch += mp_pitch;
-            err_yaw += mp_yaw;
+            err_roll += roll;
+            err_pitch += pitch;
+            //err_yaw += yaw;
             nr++;
+        } else {
+            roll -= err_roll;
+            pitch -= err_pitch;
+            //yaw -= err_yaw;        
         }
-        if(nr==100){
-            USART0_print("fac treabaaaa\r\n");
-            err_roll /=100;
-            err_pitch /=100;
-            err_yaw /=100;
+
+        if(nr==200){
+            err_roll /=200;
+            err_pitch /=200;
+            //err_yaw /=200;
             nr++;
         }
     }
     
-
-    if( mpu_write_state == 1) {
-        mp_roll = mp_roll - err_roll;
-        mp_pitch = mp_pitch - err_pitch;
-        mp_yaw = mp_yaw - err_yaw;
-        sprintf(msg,"%.3f  %.3f  %.3f   %.3f %.3f %.3f\r\n",mp_roll,mp_pitch,mp_yaw,err_roll, err_pitch, err_yaw);
-        USART0_print(msg);        
-        mpu_write_state = 0;
+    if( sonar_activated == 1) {
+        sprintf(msg,"%d %d %d %.3f\r\n",mpu9250_magX, mpu9250_magY, mpu9250_magZ, yaw);
+        USART0_print(msg);
+        compute_sonar_distance();
+        sonar_activated = 0;
     }
 
     if(opperation_mode == ASSISTED_SINK_MODE) {

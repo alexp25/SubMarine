@@ -10,6 +10,7 @@
 #include <avr/pgmspace.h>
 #include <avr/interrupt.h>
 #include <util/delay.h>
+#include <avr/eeprom.h>
 #include "serial.h"
 #include "serial_utils.h"
 
@@ -227,8 +228,11 @@ extern "C"
     extern float ax, ay, az;
     extern float gx, gy, gz;
     extern int16_t rawAccX, rawAccY, rawAccZ, rawTemp, rawGyroX, rawGyroY, rawGyroZ;
+    extern float mp_roll, mp_pitch, mp_yaw;
     extern float temperature;
 
+
+    extern int16_t mpu9250_magX , mpu9250_magY , mpu9250_magZ;
     extern uint8_t accel_range, gyro_range;
 
     //functions
@@ -262,6 +266,11 @@ extern "C"
     uint8_t mpu9250_getAccelerometerRange();
 
     void mpu9250_setAccelerometerRange(mpu9250_accel_range_t val);
+
+    void mpu9250_read_errors();
+    void mpu9250_initialize_errors();
+    void mpu9250_correct_errors();
+    void mpu9250_compute_angles();
 
 #ifdef __cplusplus
 }
