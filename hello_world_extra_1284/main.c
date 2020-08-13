@@ -62,9 +62,9 @@ void init_mpu_timer()
     TCCR0B = 0;
     TCNT0 = 0;
     //CTC with TOP at OCR0A
-    TCCR0A |= (1<<WGM01); 
+    TCCR0A |= (1 << WGM01);
     //prescaler 256
-    TCCR0B |= (1<<CS02);
+    TCCR0B |= (1 << CS02);
     //enable the interrupt
     TIMSK0 = (1 << OCIE0A);
 }
@@ -111,7 +111,7 @@ ISR(PCINT1_vect){
 
 void init_adc()
 {
-    DDRA &= ~(1<<PA0);
+    DDRA &= ~(1 << PA0);
 
     ADMUX = 0;
     ADMUX |= (1 << REFS0);
@@ -146,7 +146,8 @@ ISR(TIMER0_COMPA_vect)
     sw_mpu_read_trigger++;
     sw_sonar_activation++;
 
-    if(sw_mpu_read_trigger == 5){
+    if (sw_mpu_read_trigger == 5)
+    {
         mpu_state = 1;
         sw_mpu_read_trigger = 0;
     }
@@ -218,7 +219,6 @@ void setup()
     init_adc();
 
     opperation_mode = NORMAL_MODE;
-
 }
 
 #define CARMA 7
@@ -231,33 +231,36 @@ void setup()
 #define OUT_STATUS 3
 #define OUT_SENSOR_DATA 4
 #define OUT_SETTINGS 5
-void append_float(char *dest, float data) {
+void append_float(char *dest, float data)
+{
     int nr = (int)data;
-    
-    if(data < 0)
-        sprintf(msg,",%d.%d",nr, nr*100 - (int)(data*100));
+
+    if (data < 0)
+        sprintf(msg, ",%d.%d", nr, nr * 100 - (int)(data * 100));
     else
-        sprintf(msg,",%d.%d",nr, (int)(data*100) - nr*100);
+        sprintf(msg, ",%d.%d", nr, (int)(data * 100) - nr * 100);
 
-    strcat(dest,msg);
-}
-
-void append_command(char *dest, int data) {
-    sprintf(msg,"%d",data);
     strcat(dest, msg);
 }
 
-void append_int(char *dest, int data) {
-    sprintf(msg,",%d",data);
+void append_command(char *dest, int data)
+{
+    sprintf(msg, "%d", data);
+    strcat(dest, msg);
+}
+
+void append_int(char *dest, int data)
+{
+    sprintf(msg, ",%d", data);
     strcat(dest, msg);
 }
 
 void send_sensors_data()
 {
     char mesaj[64];
-    mesaj[0]=0;
+    mesaj[0] = 0;
 
-    append_command(mesaj,OUT_SENSOR_DATA);
+    append_command(mesaj, OUT_SENSOR_DATA);
 
     append_int(mesaj,(int)roll);
     append_int(mesaj,(int)pitch);
@@ -284,18 +287,18 @@ void send_motors_data()
 {
     char mesaj[64];
     uint8_t i;
-    mesaj[0]=0;
-    append_command(mesaj,OUT_MOTOR_DATA);
+    mesaj[0] = 0;
+    append_command(mesaj, OUT_MOTOR_DATA);
 
     append_int(mesaj, N_MOTORS);
     append_int(mesaj, N_SERVOS);
-    for( i = 0; i < N_MOTORS; i++)
-        append_float(mesaj, ((float)poz_motors[i] - 1000)/2000 ) ;
+    for (i = 0; i < N_MOTORS; i++)
+        append_float(mesaj, ((float)poz_motors[i] - 1000) / 2000);
 
-    for( i = 0; i < N_SERVOS; i++)
-        append_float(mesaj, ((float)poz_servos[i]- 500)/2200 );
+    for (i = 0; i < N_SERVOS; i++)
+        append_float(mesaj, ((float)poz_servos[i] - 500) / 2200);
 
-    strcat(mesaj,"\n");
+    strcat(mesaj, "\n");
     USART0_print(mesaj);
 }
 
@@ -318,15 +321,15 @@ void onparse(int cmd, long *data, int ndata)
         // data[0] is cmd
         break;
     case WING_FLAPS:
-        poz_servos[0] =  data[1]*17/2 + 1350;
-        servo_set_cmd(0,poz_servos[0]);
+        poz_servos[0] = data[1] * 17 / 2 + 1350;
+        servo_set_cmd(0, poz_servos[0]);
         break;
     case SINK_ANGLE:
         sink_angle = data[2];
         break;
     case CARMA:
-        poz_servos[1] =  data[2]*17/2 + 1350;
-        poz_motors[0] = (data[1]<0?0:data[1])*5 + 1000;
+        poz_servos[1] = data[2] * 17 / 2 + 1350;
+        poz_motors[0] = (data[1] < 0 ? 0 : data[1]) * 5 + 1000;
         servo_set_cmd(1, poz_servos[1]);
         servo_set_cmd(2, poz_motors[0]);
         break;
@@ -346,7 +349,7 @@ void check_adc_module()
     uint8_t ready = read_noblock_channel(&adc_val, 0);
     if (ready)
         // resistor divider R1 = 6k8, R2 = 1k
-        bat1 = 0.9*bat1 + 0.1*(to_volts(adc_val) * 7.8);    
+        bat1 = 0.9 * bat1 + 0.1 * (to_volts(adc_val) * 7.8);
 }
 
 void read_adc()
@@ -371,12 +374,12 @@ void loop()
     // check for incoming data via USART0
 
     check_com(&onparse);
-    
-    if( mpu_state == 1) 
+
+    if (mpu_state == 1)
     {
         check_adc_module();
         read_adc();
-        current = 0.9* current + (float)adc_value*7.33/1024 - 3.67;
+        current = 0.9 * current + (float)adc_value * 7.33 / 1024 - 3.67;
         //current = 0.9 * current + 0.1 * ( (float)adc_value *5 / 1024);
         mpu9250_v2_read();
         mpu9250_readMagData();
@@ -406,6 +409,12 @@ void loop()
             //err_yaw /=200;
             nr++;
         }
+        else
+        {
+            roll = roll - err_roll;
+            pitch = pitch - err_pitch;
+            yaw = yaw - err_yaw;
+        }
     }
     
     if( sonar_activated == 1) {
@@ -415,7 +424,8 @@ void loop()
         sonar_activated = 0;
     }
 
-    if(opperation_mode == ASSISTED_SINK_MODE) {
+    if (opperation_mode == ASSISTED_SINK_MODE)
+    {
         //add logic for assisted sink
     }
 }
