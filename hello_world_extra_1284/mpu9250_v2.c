@@ -10,7 +10,7 @@ uint8_t mpu9250_accel_range, mpu9250_gyro_range;
 float mp_roll, mp_pitch, mp_yaw;
 
 uint8_t Mscale = MFS_16BITS;                                 // Choose either 14-bit or 16-bit magnetometer resolution
-uint8_t Mmode = 0x02;                                        // 2 for 8 Hz, 6 for 100 Hz continuous magnetometer data read
+uint8_t Mmode = 0x06;                                        // 2 for 8 Hz, 6 for 100 Hz continuous magnetometer data read
 float magCalibration[3] = {0, 0, 0}, magbias[3] = {0, 0, 0}; // Factory mag calibration and mag bias
 float magBias[3] = {0, 0, 0}, magScale[3] = {0, 0, 0};
 
@@ -395,53 +395,23 @@ void mpu9250_read_errors() {
     egz/=200;
 }
 
-#define EEPROM_SENTINEL 0xFA
 float err_ax = 0.502, err_ay = -0.025, err_az = 0.055;
 float err_gx = 2.213, err_gy = -0.279, err_gz = 0.077;
-float err_mx = 61, err_my = 290, err_mz = -95;
+int err_mx = 81, err_my = 267, err_mz = -124;
 
-void mpu9250_write_errors()
-{
-    eeprom_write_dword((uint32_t*)1,err_ax);
-    eeprom_write_dword((uint32_t*)5,err_ay);
-    eeprom_write_dword((uint32_t*)9,err_az);
-    eeprom_write_dword((uint32_t*)13,err_gx);
-    eeprom_write_dword((uint32_t*)17,err_gy);
-    eeprom_write_dword((uint32_t*)21,err_gz);
-    eeprom_write_dword((uint32_t*)25,err_mx);
-    eeprom_write_dword((uint32_t*)29,err_my);
-    eeprom_write_dword((uint32_t*)33,err_mz);
-}
-
-void mpu9250_initialize_errors() 
-{
-    unsigned char sentinel;
-
-    sentinel = eeprom_read_byte(0);
-    if( sentinel == EEPROM_SENTINEL) {
-        err_ax = eeprom_read_dword((const uint32_t*)1);
-        err_ay = eeprom_read_dword((const uint32_t*)5);
-        err_az = eeprom_read_dword((const uint32_t*)9);
-        err_gx = eeprom_read_dword((const uint32_t*)13);
-        err_gy = eeprom_read_dword((const uint32_t*)17);
-        err_gz = eeprom_read_dword((const uint32_t*)21);
-        err_mx = eeprom_read_dword((const uint32_t*)24);
-        err_my = eeprom_read_dword((const uint32_t*)29);
-        err_mz = eeprom_read_dword((const uint32_t*)33);
-    }
-    
-}
+float gx_cor,gy_cor,gz_cor;
+int magX_cor, magY_cor, magZ_cor;
 
 void mpu9250_correct_errors(){
     // ax -= err_ax;
     // ay -= err_ay;
     // az -= err_az;
-    mpu9250_gx -= err_gx;
-    mpu9250_gy -= err_gy;
-    mpu9250_gz -= err_gz;
-    mpu9250_magX -= err_mx;
-    mpu9250_magY -= err_my;
-    mpu9250_magZ -= err_mz;
+    gx_cor = mpu9250_gx - err_gx;
+    gy_cor = mpu9250_gy - err_gy;
+    gz_cor = mpu9250_gz - err_gz;
+    magX_cor = mpu9250_magX - err_mx;
+    magY_cor = mpu9250_magY - err_my;
+    magZ_cor = mpu9250_magZ - err_mz;
 }
 
 #define SUB_DELTA 0.001
@@ -461,7 +431,7 @@ void mpu9250_compute_angles()
     if (den < SUB_DELTA) den = SUB_DELTA;
     ac_roll = atan2(mpu9250_ay,den);
 
-    ac_yaw = atan2((float)mpu9250_magZ, (float)mpu9250_magX);
+    ac_yaw = atan2((float)magZ_cor, (float)magX_cor);
     if (ac_yaw < 0)
     {
         ac_yaw += 2 * M_PI;
@@ -472,7 +442,39 @@ void mpu9250_compute_angles()
     }
     mp_yaw = ac_yaw *GRAD; //(mp_yaw + mpu9250_gx * gyro_factor * dt);   
 
-    mp_pitch = (mp_pitch + -mpu9250_gy * gyro_factor * dt) * angle_alpha + ac_pitch * GRAD * (1 - angle_alpha);
-    mp_roll = (mp_roll + -mpu9250_gz * gyro_factor * dt) * angle_alpha + ac_roll * GRAD * (1 - angle_alpha);
+    mp_pitch = (mp_pitch + -gy_cor * gyro_factor * dt) * angle_alpha + ac_pitch * GRAD * (1 - angle_alpha);
+    mp_roll = (mp_roll + -gz_cor * gyro_factor * dt) * angle_alpha + ac_roll * GRAD * (1 - angle_alpha);
     
+}
+
+int ex,ey,ez;
+int expl=-0x7fff, exm=0x7fff;
+int eypl=-0x7fff, eym=0x7fff;
+int ezpl=-0x7fff, ezm=0x7fff;
+
+void mpu9250_calibrate()
+{
+    if( expl < mpu9250_magX) expl = mpu9250_magX;
+    if( exm > mpu9250_magX) exm = mpu9250_magX;
+    if( eypl < mpu9250_magY) eypl = mpu9250_magY;
+    if( eym > mpu9250_magY) eym = mpu9250_magY;
+    if( ezpl < mpu9250_magZ) ezpl = mpu9250_magZ;
+    if( ezm > mpu9250_magZ) ezm = mpu9250_magZ;
+
+    // ex+=mpu9250_magX;
+    // ey+=mpu9250_magY;
+    // ez+=mpu9250_magZ;
+}
+
+void mpu9250_print_calib()
+{
+    // err_mx = ex / 1000;
+    // err_my = ey / 1000;
+    // err_mz = ez / 1000;
+    err_mx = (expl+exm)/2;
+    err_my = (eypl+eym)/2;
+    err_mz = (ezpl+ezm)/2;
+    char msg[50];
+    sprintf(msg,"%d %d %d\r\n",err_mx,err_my,err_mz);
+    USART0_print(msg);
 }

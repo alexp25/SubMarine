@@ -231,9 +231,13 @@ extern "C"
     extern float mp_roll, mp_pitch, mp_yaw;
     extern float temperature;
 
-
     extern int16_t mpu9250_magX , mpu9250_magY , mpu9250_magZ;
     extern uint8_t accel_range, gyro_range;
+
+    //errors
+    extern float err_ax , err_ay, err_az;
+    extern float err_gx , err_gy, err_gz;
+    extern int err_mx, err_my, err_mz;
 
     //functions
     void mpu9250_set();
@@ -267,10 +271,10 @@ extern "C"
 
     void mpu9250_setAccelerometerRange(mpu9250_accel_range_t val);
 
-    void mpu9250_read_errors();
-    void mpu9250_initialize_errors();
     void mpu9250_correct_errors();
     void mpu9250_compute_angles();
+    void mpu9250_calibrate();
+    void mpu9250_print_calib();
 
 #ifdef __cplusplus
 }
