@@ -9,6 +9,8 @@
 #include "pwm_servo.h"
 #include "math_utils.h"
 #include "ads1115.h"
+#include "eeprom_config.h"
+#include "main.h"
 
 #define DDR_TEST DDRA
 #define PORT_TEST PORTA
@@ -20,6 +22,7 @@
 
 #define NORMAL_MODE 0
 #define ASSISTED_SINK_MODE 1
+#define RETURN_HOME 2
 /**
  * Opperation mode for the submarine:
  * 0 - normal
@@ -33,6 +36,19 @@ double bat1;
 double current;
 volatile float err_roll,err_pitch, err_yaw;
 float roll,pitch,yaw;
+
+//set to one if you want to calibrate the magnetometer
+int calibrate_magnetometer = 0;
+
+//limits for the servos
+int servo_carma_mid_position = 1500;
+int servo_carma_upper_limit = servo_carma_mid_position + 300;
+int servo_carma_lower_limit = servo_carma_mid_position - 300;
+
+int servo_wings_mid_position = 1500;
+int servo_wings_upper_limit = servo_wings_mid_position + 300;
+int servo_wings_lower_limit = servo_wings_mid_position - 300;
+
 
 #define N_MOTORS 1
 #define N_SERVOS 2
@@ -134,6 +150,7 @@ volatile uint8_t sw_sonar_activation;
 volatile uint8_t mpu_state;
 volatile uint8_t sonar_activated;
 volatile uint16_t adc_value;
+volatile uint8_t check_connection;
 
 ISR(ADC_vect)
 {
@@ -149,6 +166,7 @@ ISR(TIMER0_COMPA_vect)
     if (sw_mpu_read_trigger == 5)
     {
         mpu_state = 1;
+        check_connection = 1;
         sw_mpu_read_trigger = 0;
     }
 
@@ -160,7 +178,7 @@ ISR(TIMER0_COMPA_vect)
 }
 
 
-int servo_pos=500;
+int servo_pos=1000;
 int esc_pos=1000;
 /*
  * 0 - aripi
@@ -218,19 +236,11 @@ void setup()
     init_ads1115();
     init_adc();
 
+    pid_initialize_errors();    
+
     opperation_mode = NORMAL_MODE;
 }
 
-#define CARMA 7
-#define SINK_ANGLE 6
-#define WING_FLAPS 2
-
-#define OUT_MOTOR_DATA 1
-#define OUT_ACK 200
-#define OUT_NACK 400
-#define OUT_STATUS 3
-#define OUT_SENSOR_DATA 4
-#define OUT_SETTINGS 5
 void append_float(char *dest, float data)
 {
     int nr = (int)data;
@@ -302,9 +312,27 @@ void send_motors_data()
     USART0_print(mesaj);
 }
 
+
+int lost_connection_counter;
+char msg_received;
+
+float starting_direction = 500;
+struct pid_context return_home_context;
+float dt = 0.02;
+int motor_return_power = 1500;
+
+inline int limit_servo(int x, int upper, int lower)
+{
+    if( x > upper)
+        return upper;
+    if( x < lower)
+        return lower;
+    return x;
+}
+
 void onparse(int cmd, long *data, int ndata)
 {
-
+    msg_received = 1;
     if (ndata == -1)
     {
         // checksum error
@@ -321,15 +349,18 @@ void onparse(int cmd, long *data, int ndata)
         // data[0] is cmd
         break;
     case WING_FLAPS:
-        poz_servos[0] = data[1] * 17 / 2 + 1350;
+        poz_servos[0] = limit_servo(data[1] * 17 / 2 + servo_wings_mid_position, servo_wings_upper_limit, servo_wings_lower_limit);
         servo_set_cmd(0, poz_servos[0]);
         break;
     case SINK_ANGLE:
         sink_angle = data[2];
         break;
     case CARMA:
-        poz_servos[1] = data[2] * 17 / 2 + 1350;
-        poz_motors[0] = (data[1] < 0 ? 0 : data[1]) * 5 + 1000;
+        poz_servos[1] = limit_servo(data[2] * 17 / 2 + servo_carma_mid_position, servo_carma_upper_limit, servo_carma_lower_limit);
+        poz_motors[0] = (data[1] < 0 ? 0 : data[1]) * 10 + esc_pos;
+
+        if( poz_motors[0] > 0 && starting_direction == 500)
+            starting_direction = yaw;
         servo_set_cmd(1, poz_servos[1]);
         servo_set_cmd(2, poz_motors[0]);
         break;
@@ -338,6 +369,36 @@ void onparse(int cmd, long *data, int ndata)
         break;
     case 203:
         send_motors_data();
+        break;
+    case READ_MPU:
+        mpu9250_initialize_errors();
+        break;
+    case WRITE_MPU_A:
+        mpu9250_write_a_errors( data[1], data[2], data[3]);
+        break;
+    case WRITE_MPU_G:
+        mpu9250_write_g_errors( data[1], data[2], data[3]);
+        break;
+    case WRITE_MPU_M:
+        mpu9250_write_m_errors( data[1], data[2], data[3]);
+        break;
+    case READ_PID:
+        pid_initialize_errors();
+        break;
+    case WRITE_PID:
+        pid_write_coefficients( data[1], data[2], data[3]);
+        break;
+    case WRITE_SENTINEL:
+        write_sentinel((Sentinel_Device) data[1], EEPROM_SENTINEL);
+        break;
+    case CLEAR_SENTINEL:
+        write_sentinel((Sentinel_Device) data[1], EEPROM_DEFAULTS);
+        break;
+    case READ_SERVOS:
+        servo_initialize_bias(data[1]);
+        break;
+    case WRITE_SERVOS:
+        servo_write_bias(data[1], data[2]);
         break;
     }
 }
@@ -359,19 +420,55 @@ void read_adc()
 }
 
 void compute_sonar_distance() {
-    sonar_wait = 1;        
-    PORTB |= (1 << TRIGGER_PIN);
-    _delay_us(10);
-    PORTB &= ~(1 << TRIGGER_PIN);
-    while(sonar_wait) ;
-
-    sonar_distance = sonar_time * 0.01715;
+    if( sonar_wait == 0)
+        sonar_distance = sonar_time * 0.01715;
+        sonar_wait = 1;        
+        PORTB |= (1 << TRIGGER_PIN);
+        _delay_us(10);
+        PORTB &= ~(1 << TRIGGER_PIN);
 }
 int nr;
 
+//function that return the submarine home
+void return_home()
+{
+    //compute the angle of ze carma so that the boat will return home
+    poz_servos[1] = limit_servo( update_pid(&return_home_context, yaw), servo_carma_upper_limit, servo_wings_lower_limit);
+    servo_set_cmd(1, poz_servos[1]);
+}
+
 void loop()
 {
+
     // check for incoming data via USART0
+    if(calibrate_magnetometer)
+    {
+        if(nr == 0)
+                USART0_print("calibrating magnetometer\r\n");
+        
+        if(mpu_state == 1) {
+            mpu9250_readMagData();
+            mpu9250_calibrate();
+            nr++;
+
+            
+            if( nr % 50 == 0)
+                {
+                    sprintf(msg,"%d\r\n",nr/50);
+                    USART0_print(msg);
+                }
+            if(nr == 1500)
+            {
+                USART0_print("done calibration\r\n");
+                mpu9250_print_calib();
+                calibrate_magnetometer = 0;
+                nr = 0;
+            }
+
+            mpu_state = 0;
+        }
+        return;
+    }
 
     check_com(&onparse);
 
@@ -413,16 +510,43 @@ void loop()
         {
             roll = roll - err_roll;
             pitch = pitch - err_pitch;
-            yaw = yaw - err_yaw;
+            //yaw = yaw - err_yaw;
         }
     }
     
     if( sonar_activated == 1) {
-        sprintf(msg,"%d %d %d %.3f\r\n",mpu9250_magX, mpu9250_magY, mpu9250_magZ, yaw);
-        USART0_print(msg);
+        //sprintf(msg,"%d %d %d %.3f\r\n",mpu9250_magX, mpu9250_magY, mpu9250_magZ, yaw);
+        //USART0_print(msg);
         compute_sonar_distance();
         sonar_activated = 0;
     }
+
+    if(check_connection == 1) {
+        check_connection = 0;
+
+        if( msg_received == 1) {
+            msg_received = 0;
+            lost_connection_counter = 0;
+            
+        } else if(opperation_mode != RETURN_HOME){
+            lost_connection_counter ++;
+        }
+        
+        if(lost_connection_counter == 100)
+        {
+            lost_connection_counter++;
+            opperation_mode = RETURN_HOME;
+            if(return_home_context.dt != 0)
+            {
+                initialize_pid_contex(&return_home_context, dt, starting_direction);
+                load_weights(&return_home_context, kp, ki, kd);
+                servo_set_cmd(2, poz_motors[motor_return_power]); //set a low speed for returning home
+            }
+        }
+    }
+
+    if(opperation_mode == RETURN_HOME)
+        return_home();
 
     if (opperation_mode == ASSISTED_SINK_MODE)
     {
