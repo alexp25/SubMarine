@@ -121,3 +121,64 @@ void pid_write_coefficients(float kp,float ki, float kd)
     eeprom_write_dword((uint32_t*)42,ki);
     eeprom_write_dword((uint32_t*)46,kd);
 }
+
+void servo_initialize_bias(int dev)
+{
+    switch (dev)
+    {
+    case CARMA:
+        servo_carma_mid_position = eeprom_read_word((const uint16_t*)50);
+        servo_carma_upper_limit = servo_carma_mid_position + 300;
+        servo_carma_lower_limit = servo_carma_mid_position - 300;
+        
+        #ifdef DEBUG_EEPROM
+            sprintf(msg_eeprom, " carma positions %d %d %d\r\n",servo_carma_mid_position, servo_carma_upper_limit, servo_carma_lower_limit);
+            USART0_print(msg_eeprom);
+        #endif
+
+        break;
+    
+    case WING_FLAPS:
+        servo_wings_mid_position = eeprom_read_word((const uint16_t*)54);
+        servo_wings_upper_limit = servo_wings_mid_position + 300;
+        servo_wings_lower_limit = servo_wings_mid_position - 300;
+        
+        #ifdef DEBUG_EEPROM
+            sprintf(msg_eeprom, " carma positions %d %d %d\r\n",servo_wings_mid_position, servo_wings_upper_limit, servo_wings_lower_limit);
+            USART0_print(msg_eeprom);
+        #endif
+        break;
+
+    case MOTOR:
+        motor_return_power = eeprom_read_word((const uint16_t*)58);
+         #ifdef DEBUG_EEPROM
+            sprintf(msg_eeprom, "motor return power %d\r\n",motor_return_power);
+            USART0_print(msg_eeprom);
+        #endif
+        break;
+
+    default:
+        break;
+    }
+}
+
+void servo_write_bias(int dev, short value)
+{
+    switch (dev)
+    {
+    case CARMA:
+        eeprom_write_word((uint16_t*)50, value);
+        break;
+    
+    case WING_FLAPS:
+        eeprom_write_word((uint16_t*)54, value);
+        break;
+
+    case MOTOR:
+        eeprom_write_word((uint16_t*)58, value);
+        break;
+
+    default:
+        break;
+    }
+}
