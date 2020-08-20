@@ -1,4 +1,5 @@
 #define MAX_ACC 180
+#define MAX_STEER 100
 #define MAX_ANGLE 45
 #define STANGA 1
 #define DREAPTA -1
@@ -12,12 +13,12 @@ struct pid_context {
     float der;
     float kp,ki,kd;
     float yaw_target;
-    int dt;
+    float dt;
 };
 
 
 //create a new context
-struct pid_context* create_pid_contex(int dt);
+void initialize_pid_contex(struct pid_context* context, float dt, float target);
 
 //changes the values for the parameters kp,ki and kd
 void load_weights(struct pid_context * context,float new_kp, float new_ki, float new_kd);
@@ -26,4 +27,4 @@ void load_weights(struct pid_context * context,float new_kp, float new_ki, float
 void change_target(struct pid_context * context, float new_target);
 
 //update a context
-int update(struct pid_context * context, float yaw);
+int update_pid(struct pid_context * context, float yaw);

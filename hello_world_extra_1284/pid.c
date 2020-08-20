@@ -4,10 +4,16 @@
 
 float kp = 0.5, ki = 0.5, kd = 0.5;
 
+void initialize_pid_contex(struct pid_context* context, int dt, float target)
+{
+    context->dt = dt;
+    context->yaw_target = target;
+}
+
 struct pid_context* create_pid_contex(int dt)
 {
     struct pid_context* context = (struct pid_context *) calloc(1,sizeof(struct pid_context)); 
-    context->dt = dt;
+    
     return context;
 }
 
@@ -27,7 +33,7 @@ void change_target(struct pid_context * context, float new_target)
 }
 
 //update a context
-int update(struct pid_context * context, float yaw){
+int update_pid(struct pid_context * context, float yaw){
     char dir = 0;
     float st,dr;
     st = context->yaw_target - yaw;
@@ -61,5 +67,11 @@ int update(struct pid_context * context, float yaw){
 
     context->der = 0.95f * context->der + 0.05f * context->epsilon / context->dt;
 
-    return dir * ( context->kp * context->epsilon + context->ki * context->acc + context->kd * context->der);
+    float steering_value =   context->kp * context->epsilon + context->ki * context->acc + context->kd * context->der;
+    if(steering_value > MAX_STEER)
+        steering_value = MAX_STEER;
+    if( steering_value < -MAX_STEER)
+        steering_value = MAX_STEER;
+
+    return dir * steering_value;
 }
