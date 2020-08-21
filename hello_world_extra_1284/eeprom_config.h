@@ -2,6 +2,8 @@
 #include "pid.h"
 #include <avr/eeprom.h>
 #include "serial.h"
+// [AP] e cam anti-pattern sa incluzi main aici
+// de ex. pt citirea coef pid, functia pid_initialize_errors modifica variabilele din pid.c
 #include "main.h"
 #define EEPROM_SENTINEL 0xFA
 #define EEPROM_DEFAULTS 0x00

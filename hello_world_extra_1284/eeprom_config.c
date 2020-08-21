@@ -6,6 +6,8 @@
 char msg_eeprom[100];
 #endif
 
+// [AP] todo: de atasat define-uri pt fiecare param (pozitia din eeprom), sa avem o lista cu toti param
+
 void mpu9250_write_a_errors(float eax,float eay,float eaz)
 {
     #ifdef DEBUG_EEPROM
@@ -91,6 +93,7 @@ void write_sentinel(Sentinel_Device dev, uint8_t value)
 }
 
 
+// [AP] redenumire: pid_initialize_coefficients
 void pid_initialize_errors()
 {
     unsigned char sentinel;
@@ -111,6 +114,7 @@ void pid_initialize_errors()
     #endif
 }
 
+// [AP] bun, dar vrem sa modificam coef si in timpul rularii (instant), pt ca va fi mult fine-tuning de facut
 void pid_write_coefficients(float kp,float ki, float kd)
 {
     #ifdef DEBUG_EEPROM
@@ -122,6 +126,7 @@ void pid_write_coefficients(float kp,float ki, float kd)
     eeprom_write_dword((uint32_t*)46,kd);
 }
 
+// [AP] asta ar trb apelata in main (setup)
 void servo_initialize_bias(int dev)
 {
     switch (dev)
@@ -162,6 +167,7 @@ void servo_initialize_bias(int dev)
     }
 }
 
+// [AP] int16_t in loc de short
 void servo_write_bias(int dev, short value)
 {
     switch (dev)

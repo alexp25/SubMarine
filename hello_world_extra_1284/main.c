@@ -3,6 +3,8 @@
 #include <avr/interrupt.h>
 #include <avr/eeprom.h>
 #include <avr/wdt.h>
+#include <stdint.h>
+
 #include "serial_parser_c.h"
 #include "mpu9250_v2.h"
 #include "twi_arduino.h"
@@ -32,10 +34,12 @@ char opperation_mode;
 char sink_angle;
 char msg[100];
 
+uint8_t reset = 0;
+
 double bat1;
 double current;
-volatile float err_roll,err_pitch, err_yaw;
-float roll,pitch,yaw;
+volatile float err_roll, err_pitch, err_yaw;
+float roll, pitch, yaw;
 
 //set to one if you want to calibrate the magnetometer
 int calibrate_magnetometer = 0;
@@ -49,7 +53,6 @@ int servo_wings_mid_position = 1500;
 int servo_wings_upper_limit = servo_wings_mid_position + 300;
 int servo_wings_lower_limit = servo_wings_mid_position - 300;
 
-
 #define N_MOTORS 1
 #define N_SERVOS 2
 int poz_servos[N_SERVOS];
@@ -62,7 +65,7 @@ void gpio_init()
 
     DDRB |= (1 << TRIGGER_PIN);
     PORTB &= ~(1 << TRIGGER_PIN);
-    DDRB &= ~(1 << ECHO_PIN); 
+    DDRB &= ~(1 << ECHO_PIN);
     PORTB &= ~(1 << ECHO_PIN);
 
     //interrupts on the echo pin
@@ -92,13 +95,12 @@ void init_sonar_timer()
     TCCR2B = 0;
     TCNT2 = 0;
     //prescaler 32
-    TCCR2B = ( 1 << CS21) | ( 1 << CS20);
+    TCCR2B = (1 << CS21) | (1 << CS20);
     //CTC with TOP at OCR0A
-    TCCR2A |= (1<<WGM21);
+    TCCR2A |= (1 << WGM21);
     //enable the interrupt
     TIMSK2 = (1 << OCIE2A);
 }
-
 
 volatile int sonar_time;
 volatile double sonar_distance;
@@ -106,23 +108,28 @@ volatile char sonar_wait;
 
 ISR(TIMER2_COMPA_vect) //one interrupt per milisecond
 {
-    if( PINB & ( 1 << ECHO_PIN)) {
-        sonar_time+=500;
+    if (PINB & (1 << ECHO_PIN))
+    {
+        sonar_time += 500;
     }
 }
 
-ISR(PCINT1_vect){
-  
-  //daca trece pe 1 incepe o masuratoare
-  if ( PINB & (1 << ECHO_PIN) ){
-    sonar_time = -TCNT2<<1;
-    //prescaler 32
-    //TCCR2B = ( 1 << CS21) | ( 1 << CS20);
-  } else { //altfel o termina
-    sonar_time += TCNT2<<1; //16Mhz , prescaler 32 => 250kHz => 10^6/25*10^4 = 4 us per tick
-    //TCCR2B = 0;
-    sonar_wait = 0;
-  }
+ISR(PCINT1_vect)
+{
+
+    //daca trece pe 1 incepe o masuratoare
+    if (PINB & (1 << ECHO_PIN))
+    {
+        sonar_time = -TCNT2 << 1;
+        //prescaler 32
+        //TCCR2B = ( 1 << CS21) | ( 1 << CS20);
+    }
+    else
+    {                             //altfel o termina
+        sonar_time += TCNT2 << 1; //16Mhz , prescaler 32 => 250kHz => 10^6/25*10^4 = 4 us per tick
+        //TCCR2B = 0;
+        sonar_wait = 0;
+    }
 }
 
 void init_adc()
@@ -170,16 +177,16 @@ ISR(TIMER0_COMPA_vect)
         sw_mpu_read_trigger = 0;
     }
 
-    if(sw_sonar_activation==250) {
-        PORT_TEST ^= (1<<PIN_TEST);
+    if (sw_sonar_activation == 250)
+    {
+        PORT_TEST ^= (1 << PIN_TEST);
         sonar_activated = 1;
-        sw_sonar_activation=0;
+        sw_sonar_activation = 0;
     }
 }
 
-
-int servo_pos=1000;
-int esc_pos=1000;
+int servo_pos = 1000;
+int esc_pos = 1000;
 /*
  * 0 - aripi
  * 1 - carma
@@ -209,6 +216,9 @@ void setup()
 
     MCUSR = 0;
 
+    // [AP] added watchdog timer (useful for self-reset command, also prevent code from freezing, e.g. rogue while loop, blocking functions, etc)
+    wdt_enable(WDTO_4S);
+
     gpio_init();
 
     USART0_init(115200);
@@ -236,7 +246,7 @@ void setup()
     init_ads1115();
     init_adc();
 
-    pid_initialize_errors();    
+    pid_initialize_errors();
 
     opperation_mode = NORMAL_MODE;
 }
@@ -272,24 +282,24 @@ void send_sensors_data()
 
     append_command(mesaj, OUT_SENSOR_DATA);
 
-    append_int(mesaj,(int)roll);
-    append_int(mesaj,(int)pitch);
-    append_int(mesaj,(int)yaw);
-    append_float(mesaj,0);
-    append_float(mesaj,0);
-    append_float(mesaj,0);
+    append_int(mesaj, (int)roll);
+    append_int(mesaj, (int)pitch);
+    append_int(mesaj, (int)yaw);
+    append_float(mesaj, 0);
+    append_float(mesaj, 0);
+    append_float(mesaj, 0);
     USART0_print(mesaj);
-    mesaj[0]=0;
-    append_float(mesaj,0);
-    append_float(mesaj,current);
-    append_float(mesaj,0);
-    append_float(mesaj,0);
-    append_float(mesaj,0);
-    append_float(mesaj,yaw);
-    append_float(mesaj,sonar_distance);
-    append_float(mesaj,bat1);
-    append_float(mesaj,0);
-    strcat(mesaj,"\n");
+    mesaj[0] = 0;
+    append_float(mesaj, 0);
+    append_float(mesaj, current);
+    append_float(mesaj, 0);
+    append_float(mesaj, 0);
+    append_float(mesaj, 0);
+    append_float(mesaj, yaw);
+    append_float(mesaj, sonar_distance);
+    append_float(mesaj, bat1);
+    append_float(mesaj, 0);
+    strcat(mesaj, "\n");
     USART0_print(mesaj);
 }
 
@@ -312,7 +322,6 @@ void send_motors_data()
     USART0_print(mesaj);
 }
 
-
 int lost_connection_counter;
 char msg_received;
 
@@ -323,9 +332,9 @@ int motor_return_power = 1500;
 
 inline int limit_servo(int x, int upper, int lower)
 {
-    if( x > upper)
+    if (x > upper)
         return upper;
-    if( x < lower)
+    if (x < lower)
         return lower;
     return x;
 }
@@ -359,7 +368,7 @@ void onparse(int cmd, long *data, int ndata)
         poz_servos[1] = limit_servo(data[2] * 17 / 2 + servo_carma_mid_position, servo_carma_upper_limit, servo_carma_lower_limit);
         poz_motors[0] = (data[1] < 0 ? 0 : data[1]) * 10 + esc_pos;
 
-        if( poz_motors[0] > 0 && starting_direction == 500)
+        if (poz_motors[0] > 0 && starting_direction == 500)
             starting_direction = yaw;
         servo_set_cmd(1, poz_servos[1]);
         servo_set_cmd(2, poz_motors[0]);
@@ -374,31 +383,38 @@ void onparse(int cmd, long *data, int ndata)
         mpu9250_initialize_errors();
         break;
     case WRITE_MPU_A:
-        mpu9250_write_a_errors( data[1], data[2], data[3]);
+        mpu9250_write_a_errors(data[1], data[2], data[3]);
         break;
     case WRITE_MPU_G:
-        mpu9250_write_g_errors( data[1], data[2], data[3]);
+        mpu9250_write_g_errors(data[1], data[2], data[3]);
         break;
     case WRITE_MPU_M:
-        mpu9250_write_m_errors( data[1], data[2], data[3]);
+        mpu9250_write_m_errors(data[1], data[2], data[3]);
         break;
     case READ_PID:
         pid_initialize_errors();
         break;
     case WRITE_PID:
-        pid_write_coefficients( data[1], data[2], data[3]);
+        // [AP] data contine long-uri, dar param sunt float
+        // obs: virgula fixa, scalare cu 10000 (un define ar fi util aici) pentru scriere/citire params (la fel si la celelalte functii)
+        // vezi si comment-ul pe functie
+        pid_write_coefficients(data[1], data[2], data[3]);
         break;
     case WRITE_SENTINEL:
-        write_sentinel((Sentinel_Device) data[1], EEPROM_SENTINEL);
+        write_sentinel((Sentinel_Device)data[1], EEPROM_SENTINEL);
         break;
     case CLEAR_SENTINEL:
-        write_sentinel((Sentinel_Device) data[1], EEPROM_DEFAULTS);
+        write_sentinel((Sentinel_Device)data[1], EEPROM_DEFAULTS);
         break;
     case READ_SERVOS:
         servo_initialize_bias(data[1]);
         break;
     case WRITE_SERVOS:
         servo_write_bias(data[1], data[2]);
+        break;
+        // [AP] todo: test return to home enable/disable via button
+    case CMD_RESET:
+        reset = 1;
         break;
     }
 }
@@ -419,45 +435,57 @@ void read_adc()
     ADCSRA |= (1 << ADSC);
 }
 
-void compute_sonar_distance() {
-    if( sonar_wait == 0)
+void compute_sonar_distance()
+{
+    if (sonar_wait == 0)
         sonar_distance = sonar_time * 0.01715;
-        sonar_wait = 1;        
-        PORTB |= (1 << TRIGGER_PIN);
-        _delay_us(10);
-        PORTB &= ~(1 << TRIGGER_PIN);
+    sonar_wait = 1;
+    PORTB |= (1 << TRIGGER_PIN);
+    _delay_us(10);
+    PORTB &= ~(1 << TRIGGER_PIN);
 }
 int nr;
 
+// [AP] poti folosi distanta de la sonar ca sa se opreasca la mal (daca "obstacolul" dispare, continua deplasarea), cu un threshold setat in config
 //function that return the submarine home
 void return_home()
 {
     //compute the angle of ze carma so that the boat will return home
-    poz_servos[1] = limit_servo( update_pid(&return_home_context, yaw), servo_carma_upper_limit, servo_wings_lower_limit);
+    poz_servos[1] = limit_servo(update_pid(&return_home_context, yaw), servo_carma_upper_limit, servo_wings_lower_limit);
     servo_set_cmd(1, poz_servos[1]);
 }
 
 void loop()
 {
 
-    // check for incoming data via USART0
-    if(calibrate_magnetometer)
+    if (!reset)
     {
-        if(nr == 0)
-                USART0_print("calibrating magnetometer\r\n");
-        
-        if(mpu_state == 1) {
+        wdt_reset();
+    }
+    else
+    {
+        // do not reset the watchdog => the mcu will reset
+    }
+
+    // check for incoming data via USART0
+    if (calibrate_magnetometer)
+    {
+        // [AP] de adaugat "9000," inainte de mesajele de debug
+        if (nr == 0)
+            USART0_print("calibrating magnetometer\r\n");
+
+        if (mpu_state == 1)
+        {
             mpu9250_readMagData();
             mpu9250_calibrate();
             nr++;
 
-            
-            if( nr % 50 == 0)
-                {
-                    sprintf(msg,"%d\r\n",nr/50);
-                    USART0_print(msg);
-                }
-            if(nr == 1500)
+            if (nr % 50 == 0)
+            {
+                sprintf(msg, "%d\r\n", nr / 50);
+                USART0_print(msg);
+            }
+            if (nr == 1500)
             {
                 USART0_print("done calibration\r\n");
                 mpu9250_print_calib();
@@ -482,27 +510,30 @@ void loop()
         mpu9250_readMagData();
         mpu9250_correct_errors();
         mpu9250_compute_angles();
-        
+
         roll = mp_roll;
         pitch = mp_pitch;
         yaw = mp_yaw;
 
         mpu_state = 0;
-        if(nr<200)
+        if (nr < 200)
         {
             err_roll += roll;
             err_pitch += pitch;
             //err_yaw += yaw;
             nr++;
-        } else {
+        }
+        else
+        {
             roll -= err_roll;
             pitch -= err_pitch;
-            //yaw -= err_yaw;        
+            //yaw -= err_yaw;
         }
 
-        if(nr==200){
-            err_roll /=200;
-            err_pitch /=200;
+        if (nr == 200)
+        {
+            err_roll /= 200;
+            err_pitch /= 200;
             //err_yaw /=200;
             nr++;
         }
@@ -513,30 +544,35 @@ void loop()
             //yaw = yaw - err_yaw;
         }
     }
-    
-    if( sonar_activated == 1) {
+
+    if (sonar_activated == 1)
+    {
         //sprintf(msg,"%d %d %d %.3f\r\n",mpu9250_magX, mpu9250_magY, mpu9250_magZ, yaw);
         //USART0_print(msg);
         compute_sonar_distance();
         sonar_activated = 0;
     }
 
-    if(check_connection == 1) {
+    if (check_connection == 1)
+    {
         check_connection = 0;
 
-        if( msg_received == 1) {
+        if (msg_received == 1)
+        {
             msg_received = 0;
             lost_connection_counter = 0;
-            
-        } else if(opperation_mode != RETURN_HOME){
-            lost_connection_counter ++;
         }
-        
-        if(lost_connection_counter == 100)
+        else if (opperation_mode != RETURN_HOME)
+        {
+            lost_connection_counter++;
+        }
+
+        if (lost_connection_counter == 100)
         {
             lost_connection_counter++;
             opperation_mode = RETURN_HOME;
-            if(return_home_context.dt != 0)
+            // [AP] ce e cu verificarea != 0? cred ca ar trebui tot timpul facuta initializarea
+            if (return_home_context.dt != 0)
             {
                 initialize_pid_contex(&return_home_context, dt, starting_direction);
                 load_weights(&return_home_context, kp, ki, kd);
@@ -545,7 +581,8 @@ void loop()
         }
     }
 
-    if(opperation_mode == RETURN_HOME)
+    // [AP] aici mai avem un pas intermediar, sa astepte 5 min (opreste motor, asteapta timer) inainte sa se intoarca
+    if (opperation_mode == RETURN_HOME)
         return_home();
 
     if (opperation_mode == ASSISTED_SINK_MODE)

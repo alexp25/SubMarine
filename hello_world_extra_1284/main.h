@@ -13,6 +13,7 @@
 #define CLEAR_SENTINEL 17
 #define READ_SERVOS 18
 #define WRITE_SERVOS 19
+#define CMD_RESET 111
 
 #define OUT_MOTOR_DATA 1
 #define OUT_ACK 200
