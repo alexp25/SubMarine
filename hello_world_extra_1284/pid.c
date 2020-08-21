@@ -2,19 +2,10 @@
 #include <string.h>
 #include "pid.h"
 
-float kp = 0.5, ki = 0.5, kd = 0.5;
-
-void initialize_pid_contex(struct pid_context* context, int dt, float target)
+void initialize_pid_contex(struct pid_context* context, float dt, float target)
 {
     context->dt = dt;
     context->yaw_target = target;
-}
-
-struct pid_context* create_pid_contex(int dt)
-{
-    struct pid_context* context = (struct pid_context *) calloc(1,sizeof(struct pid_context)); 
-    
-    return context;
 }
 
 void load_weights(struct pid_context * context,float new_kp, float new_ki, float new_kd)

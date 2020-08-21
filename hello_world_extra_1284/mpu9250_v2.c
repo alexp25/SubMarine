@@ -406,20 +406,24 @@ void mpu9250_correct_errors(){
     // ax -= err_ax;
     // ay -= err_ay;
     // az -= err_az;
-    gx_cor = mpu9250_gx - err_gx;
-    gy_cor = mpu9250_gy - err_gy;
-    gz_cor = mpu9250_gz - err_gz;
-    magX_cor = mpu9250_magX - err_mx;
-    magY_cor = mpu9250_magY - err_my;
-    magZ_cor = mpu9250_magZ - err_mz;
+    gx_cor = mpu9250_gx - get_settings_value_float(EGX_POS);
+    gy_cor = mpu9250_gy - get_settings_value_float(EGY_POS);
+    gz_cor = mpu9250_gz - get_settings_value_float(EGZ_POS);
+    magX_cor = mpu9250_magX - (int)get_settings_value_int(EMX_POS);
+    magY_cor = mpu9250_magY - (int)get_settings_value_int(EMY_POS);
+    magZ_cor = mpu9250_magZ - (int)get_settings_value_int(EMZ_POS);
+    // char msg[200];
+    // sprintf(msg, "%.4f %.4f %.4f %ld %ld %ld\r\n",get_settings_value_float(EGX_POS),get_settings_value_float(EGY_POS),
+    //  get_settings_value_float(EGZ_POS), get_settings_value_int(EMX_POS), get_settings_value_int(EMY_POS),
+    // get_settings_value_int(EMZ_POS) );
+    // USART0_print(msg); 
 }
 
 #define SUB_DELTA 0.001
 float angle_alpha = 0.96;
 float gyro_factor = 1;
-float dt=0.02;
 
-void mpu9250_compute_angles()
+void mpu9250_compute_angles(float dt)
 {
     float ac_pitch, ac_roll, ac_yaw, den;
 

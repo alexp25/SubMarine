@@ -5,7 +5,7 @@
 #define DREAPTA -1
 #define WRAP_AROUND(x) (x < 0) ? x + 360 : x
 
-extern float kp, ki, kd;
+#define UPDATE_PID_PARAM(x,y) x = ((float)y)/10000;
 
 struct pid_context {
     float epsilon;
@@ -15,7 +15,6 @@ struct pid_context {
     float yaw_target;
     float dt;
 };
-
 
 //create a new context
 void initialize_pid_contex(struct pid_context* context, float dt, float target);

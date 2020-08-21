@@ -11,8 +11,10 @@
 #include "pwm_servo.h"
 #include "math_utils.h"
 #include "ads1115.h"
-#include "eeprom_config.h"
 #include "main.h"
+#include "string_utils.h"
+#include "settings.h"
+#include "pid.h"
 
 #define DDR_TEST DDRA
 #define PORT_TEST PORTA
@@ -43,20 +45,6 @@ float roll, pitch, yaw;
 
 //set to one if you want to calibrate the magnetometer
 int calibrate_magnetometer = 0;
-
-//limits for the servos
-int servo_carma_mid_position = 1500;
-int servo_carma_upper_limit = servo_carma_mid_position + 300;
-int servo_carma_lower_limit = servo_carma_mid_position - 300;
-
-int servo_wings_mid_position = 1500;
-int servo_wings_upper_limit = servo_wings_mid_position + 300;
-int servo_wings_lower_limit = servo_wings_mid_position - 300;
-
-#define N_MOTORS 1
-#define N_SERVOS 2
-int poz_servos[N_SERVOS];
-int poz_motors[N_MOTORS];
 
 void gpio_init()
 {
@@ -237,42 +225,44 @@ void setup()
 
     wire_begin();
     mpu9250_v2_init();
-    mpu9250_initialize_errors();
 
+    initialize_settings();
+    
     init_mpu_timer();
     init_sonar_timer();
 
-    initialize_servos();
     init_ads1115();
     init_adc();
-
-    pid_initialize_errors();
+    initialize_servos();
 
     opperation_mode = NORMAL_MODE;
 }
 
-void append_float(char *dest, float data)
+
+uint8_t return_home_engaged = 0;
+void send_status()
 {
-    int nr = (int)data;
+    char mesaj[64];
+    mesaj[0] = 0;
 
-    if (data < 0)
-        sprintf(msg, ",%d.%d", nr, nr * 100 - (int)(data * 100));
-    else
-        sprintf(msg, ",%d.%d", nr, (int)(data * 100) - nr * 100);
-
-    strcat(dest, msg);
-}
-
-void append_command(char *dest, int data)
-{
-    sprintf(msg, "%d", data);
-    strcat(dest, msg);
-}
-
-void append_int(char *dest, int data)
-{
-    sprintf(msg, ",%d", data);
-    strcat(dest, msg);
+    append_command(mesaj, OUT_STATUS);
+    append_int(mesaj, return_home_engaged);
+    append_int(mesaj,0);
+    append_int(mesaj,0);
+    append_int(mesaj,0);
+    append_int(mesaj,0);
+    append_int(mesaj,0);
+    append_int(mesaj,0);
+    append_int(mesaj,0);
+    append_int(mesaj,0);
+    append_int(mesaj,0);
+    append_int(mesaj,0);
+    append_int(mesaj,0);
+    append_int(mesaj,0);
+    append_int(mesaj,0);
+    append_int(mesaj,0);
+    strcat(mesaj,"\n");
+    USART0_print(mesaj);
 }
 
 void send_sensors_data()
@@ -322,13 +312,13 @@ void send_motors_data()
     USART0_print(mesaj);
 }
 
+
 int lost_connection_counter;
 char msg_received;
 
 float starting_direction = 500;
 struct pid_context return_home_context;
 float dt = 0.02;
-int motor_return_power = 1500;
 
 inline int limit_servo(int x, int upper, int lower)
 {
@@ -337,6 +327,30 @@ inline int limit_servo(int x, int upper, int lower)
     if (x < lower)
         return lower;
     return x;
+}
+
+// [AP] poti folosi distanta de la sonar ca sa se opreasca la mal (daca "obstacolul" dispare, continua deplasarea), cu un threshold setat in config
+//function that return the submarine home
+// [VL] Done
+void return_home()
+{
+    //compute the angle of ze carma so that the boat will return home
+    if(sonar_distance < get_settings_value_float(RETURN_HOME_DISTANCE_POS)) {
+        poz_motors[0] = esc_pos;
+        servo_set_cmd(2, poz_motors[0]);
+    }
+    uint32_t carma_mid = get_settings_value_int(CARMA_POS);
+    poz_servos[1] = limit_servo(update_pid(&return_home_context, yaw), carma_mid + 300, carma_mid - 300);
+    servo_set_cmd(1, poz_servos[1]);
+}
+
+void return_home_initialization()
+{
+    initialize_pid_contex(&return_home_context, dt, starting_direction);
+    load_weights(&return_home_context, get_settings_value_float(KP_POS), get_settings_value_float(KI_POS),
+                    get_settings_value_float(KD_POS));
+    poz_motors[0] = get_settings_value_int(MOTOR_RETURN_POWER_POS);
+    servo_set_cmd(2, poz_motors[0]); //set a low speed for returning home
 }
 
 void onparse(int cmd, long *data, int ndata)
@@ -349,6 +363,9 @@ void onparse(int cmd, long *data, int ndata)
         return;
     }
 
+    uint32_t wing_flaps_mid = get_settings_value_int(WING_FLAPS_POS);
+    uint32_t carma_mid = get_settings_value_int(CARMA_POS);
+
     switch (cmd)
     {
     case 1:
@@ -358,14 +375,16 @@ void onparse(int cmd, long *data, int ndata)
         // data[0] is cmd
         break;
     case WING_FLAPS:
-        poz_servos[0] = limit_servo(data[1] * 17 / 2 + servo_wings_mid_position, servo_wings_upper_limit, servo_wings_lower_limit);
+        
+        poz_servos[0] = limit_servo(data[1] * 17 / 2 + wing_flaps_mid, wing_flaps_mid + 300, wing_flaps_mid - 300);
         servo_set_cmd(0, poz_servos[0]);
         break;
     case SINK_ANGLE:
         sink_angle = data[2];
         break;
     case CARMA:
-        poz_servos[1] = limit_servo(data[2] * 17 / 2 + servo_carma_mid_position, servo_carma_upper_limit, servo_carma_lower_limit);
+       
+        poz_servos[1] = limit_servo(data[2] * 17 / 2 + carma_mid, carma_mid+300, carma_mid - 300);
         poz_motors[0] = (data[1] < 0 ? 0 : data[1]) * 10 + esc_pos;
 
         if (poz_motors[0] > 0 && starting_direction == 500)
@@ -373,13 +392,28 @@ void onparse(int cmd, long *data, int ndata)
         servo_set_cmd(1, poz_servos[1]);
         servo_set_cmd(2, poz_motors[0]);
         break;
+    case CMD_SAVE_SETTINGS:
+        save_setting();
+        break;
+    case CMD_UPDATE_SETTINGS:
+        update_setting(data[1],data[2]);
+        break;
+    case CMD_RESET_DEFAULTS:
+        initialize_default();
+        break;
     case 202:
         send_sensors_data();
         break;
     case 203:
         send_motors_data();
         break;
-    case READ_MPU:
+    case 201:
+        send_status();
+        break;
+    case CMD_REQUEST_SETTINGS:
+        show_list();
+        break;
+    /*case READ_MPU:
         mpu9250_initialize_errors();
         break;
     case WRITE_MPU_A:
@@ -398,6 +432,7 @@ void onparse(int cmd, long *data, int ndata)
         // [AP] data contine long-uri, dar param sunt float
         // obs: virgula fixa, scalare cu 10000 (un define ar fi util aici) pentru scriere/citire params (la fel si la celelalte functii)
         // vezi si comment-ul pe functie
+        // [VL] DONE
         pid_write_coefficients(data[1], data[2], data[3]);
         break;
     case WRITE_SENTINEL:
@@ -412,7 +447,29 @@ void onparse(int cmd, long *data, int ndata)
     case WRITE_SERVOS:
         servo_write_bias(data[1], data[2]);
         break;
+    case REWRITE_PID_PARAMETERS:
+        UPDATE_PID_PARAM(kp,data[1])
+        UPDATE_PID_PARAM(ki,data[2])
+        UPDATE_PID_PARAM(kd,data[3])
+        break;
         // [AP] todo: test return to home enable/disable via button
+    case WRITE_DISTANCE_TRESHOLD:
+        return_home_write_distance_treshold(data[1]);
+        break;
+    case READ_DISTANCE_TRESHOLD:
+        return_home_initialize_distance_treshold();
+        break;
+    */
+    case RETURN_HOME_BUTTON:
+        opperation_mode = RETURN_HOME;
+        return_home_engaged = 1;
+        return_home_initialization();
+        break;
+    case RETURN_CONTROL:
+        opperation_mode = NORMAL_MODE;
+        return_home_engaged = 0;
+        break;
+    
     case CMD_RESET:
         reset = 1;
         break;
@@ -444,17 +501,8 @@ void compute_sonar_distance()
     _delay_us(10);
     PORTB &= ~(1 << TRIGGER_PIN);
 }
+
 int nr;
-
-// [AP] poti folosi distanta de la sonar ca sa se opreasca la mal (daca "obstacolul" dispare, continua deplasarea), cu un threshold setat in config
-//function that return the submarine home
-void return_home()
-{
-    //compute the angle of ze carma so that the boat will return home
-    poz_servos[1] = limit_servo(update_pid(&return_home_context, yaw), servo_carma_upper_limit, servo_wings_lower_limit);
-    servo_set_cmd(1, poz_servos[1]);
-}
-
 void loop()
 {
 
@@ -471,8 +519,9 @@ void loop()
     if (calibrate_magnetometer)
     {
         // [AP] de adaugat "9000," inainte de mesajele de debug
+        // [VL] done
         if (nr == 0)
-            USART0_print("calibrating magnetometer\r\n");
+            USART0_print("9000, calibrating magnetometer\r\n");
 
         if (mpu_state == 1)
         {
@@ -482,12 +531,12 @@ void loop()
 
             if (nr % 50 == 0)
             {
-                sprintf(msg, "%d\r\n", nr / 50);
+                sprintf(msg, "9000, %d\r\n", nr / 50);
                 USART0_print(msg);
             }
             if (nr == 1500)
             {
-                USART0_print("done calibration\r\n");
+                USART0_print("9000, done calibration\r\n");
                 mpu9250_print_calib();
                 calibrate_magnetometer = 0;
                 nr = 0;
@@ -509,7 +558,7 @@ void loop()
         mpu9250_v2_read();
         mpu9250_readMagData();
         mpu9250_correct_errors();
-        mpu9250_compute_angles();
+        mpu9250_compute_angles(dt);
 
         roll = mp_roll;
         pitch = mp_pitch;
@@ -553,6 +602,7 @@ void loop()
         sonar_activated = 0;
     }
 
+    //check the connection with the bluetooth module
     if (check_connection == 1)
     {
         check_connection = 0;
@@ -561,27 +611,32 @@ void loop()
         {
             msg_received = 0;
             lost_connection_counter = 0;
+            if( !return_home_engaged)
+                opperation_mode = NORMAL_MODE;
         }
         else if (opperation_mode != RETURN_HOME)
         {
             lost_connection_counter++;
         }
 
+        //after 2 seconds with no signal from the bluetooth, turn off the motor
         if (lost_connection_counter == 100)
+        {
+            poz_motors[0] = esc_pos;
+            servo_set_cmd(2, poz_motors[0]);
+        }
+
+        //after 30 more seconds, start the return home procedure
+        if(lost_connection_counter == 1600)
         {
             lost_connection_counter++;
             opperation_mode = RETURN_HOME;
-            // [AP] ce e cu verificarea != 0? cred ca ar trebui tot timpul facuta initializarea
-            if (return_home_context.dt != 0)
-            {
-                initialize_pid_contex(&return_home_context, dt, starting_direction);
-                load_weights(&return_home_context, kp, ki, kd);
-                servo_set_cmd(2, poz_motors[motor_return_power]); //set a low speed for returning home
-            }
+            return_home_initialization();
         }
     }
 
     // [AP] aici mai avem un pas intermediar, sa astepte 5 min (opreste motor, asteapta timer) inainte sa se intoarca
+    //done above
     if (opperation_mode == RETURN_HOME)
         return_home();
 

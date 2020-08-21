@@ -2,6 +2,8 @@
 #define SINK_ANGLE 6
 #define WING_FLAPS 2
 #define MOTOR 8
+#define RETURN_HOME_BUTTON 4
+#define RETURN_CONTROL 5
 
 #define READ_MPU 10
 #define WRITE_MPU_A 11
@@ -13,7 +15,16 @@
 #define CLEAR_SENTINEL 17
 #define READ_SERVOS 18
 #define WRITE_SERVOS 19
+#define REWRITE_PID_PARAMETERS 20
+#define WRITE_DISTANCE_TRESHOLD 21
+#define READ_DISTANCE_TRESHOLD 22
+
+#define CMD_UPDATE_SETTINGS 105
+#define CMD_SAVE_SETTINGS 106
+#define CMD_RESET_DEFAULTS 107
 #define CMD_RESET 111
+#define CMD_REQUEST_SETTINGS 206
+
 
 #define OUT_MOTOR_DATA 1
 #define OUT_ACK 200
@@ -22,12 +33,7 @@
 #define OUT_SENSOR_DATA 4
 #define OUT_SETTINGS 5
 
-extern int servo_carma_mid_position;
-extern int servo_carma_upper_limit;
-extern int servo_carma_lower_limit;
-
-extern int servo_wings_mid_position;
-extern int servo_wings_upper_limit;
-extern int servo_wings_lower_limit;
-
-extern int motor_return_power;
+#define N_MOTORS 1
+#define N_SERVOS 2
+int poz_servos[N_SERVOS];
+int poz_motors[N_MOTORS];

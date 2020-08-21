@@ -16,6 +16,7 @@
 
 #include "twi_arduino.h"
 #include "twi_utils.h"
+#include "settings.h"
 
 #ifdef __cplusplus
 extern "C"
@@ -272,7 +273,7 @@ extern "C"
     void mpu9250_setAccelerometerRange(mpu9250_accel_range_t val);
 
     void mpu9250_correct_errors();
-    void mpu9250_compute_angles();
+    void mpu9250_compute_angles(float dt);
     void mpu9250_calibrate();
     void mpu9250_print_calib();
 
