@@ -147,6 +147,7 @@ void init_adc()
 
 volatile uint8_t sw_mpu_read_trigger;
 volatile uint8_t sw_sonar_activation;
+volatile uint16_t sw_buzzer_activation;
 /*
  * 0 - idle
  * 1 - read data from twi
@@ -165,6 +166,7 @@ ISR(ADC_vect)
 
 //pump trigger
 uint8_t pump_engaged = 0;
+uint8_t trigger_buzzer = 0;
 
 ISR(TIMER0_COMPA_vect)
 {
@@ -173,6 +175,7 @@ ISR(TIMER0_COMPA_vect)
 
     sw_mpu_read_trigger++;
     sw_sonar_activation++;
+    sw_buzzer_activation++;
 
     if (sw_mpu_read_trigger == 20)
     {
@@ -187,6 +190,12 @@ ISR(TIMER0_COMPA_vect)
         sonar_activated = 1;
         sw_sonar_activation = 0;
     }
+
+    if(sw_buzzer_activation == 500) {
+        sw_buzzer_activation = 0;
+        trigger_buzzer = 1;
+    }
+
 }
 
 ISR(TIMER0_COMPB_vect)
@@ -677,8 +686,15 @@ void loop()
 
         // [AP] aici mai avem un pas intermediar, sa astepte 5 min (opreste motor, asteapta timer) inainte sa se intoarca
     //done above
-    if (opperation_mode == RETURN_HOME)
+    if (opperation_mode == RETURN_HOME) 
+    {
         return_home();
+        if( trigger_buzzer)
+        {
+            trigger_buzzer = 0;
+            PORT_TEST ^= (1 << PIN_SPK);
+        }
+    }
 
     float alph;
     if( update_servos == 1) 
