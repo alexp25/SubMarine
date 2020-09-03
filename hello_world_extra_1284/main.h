@@ -1,6 +1,6 @@
-#define CARMA 7
+#define CARMA 2
 #define SINK_ANGLE 6
-#define WING_FLAPS 2
+#define WING_FLAPS 7
 #define MOTOR 8
 #define SET_SAIL 4
 #define HARBOUR 5

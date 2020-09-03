@@ -147,6 +147,7 @@ void init_adc()
 
 volatile uint8_t sw_mpu_read_trigger;
 volatile uint8_t sw_sonar_activation;
+volatile uint16_t sw_buzzer_activation;
 /*
  * 0 - idle
  * 1 - read data from twi
@@ -165,6 +166,7 @@ ISR(ADC_vect)
 
 //pump trigger
 uint8_t pump_engaged = 0;
+uint8_t trigger_buzzer = 0;
 
 ISR(TIMER0_COMPA_vect)
 {
@@ -173,6 +175,7 @@ ISR(TIMER0_COMPA_vect)
 
     sw_mpu_read_trigger++;
     sw_sonar_activation++;
+    sw_buzzer_activation++;
 
     if (sw_mpu_read_trigger == 20)
     {
@@ -187,6 +190,12 @@ ISR(TIMER0_COMPA_vect)
         sonar_activated = 1;
         sw_sonar_activation = 0;
     }
+
+    if(sw_buzzer_activation == 500) {
+        sw_buzzer_activation = 0;
+        trigger_buzzer = 1;
+    }
+
 }
 
 ISR(TIMER0_COMPB_vect)
@@ -220,9 +229,10 @@ void initialize_servos()
     servo_set_cmd(1, wing_flaps_mid);
     servo_set_cmd(2, ESC_STOP);
 
-    poz_servos[0] = carma_mid;
-    poz_servos[1] = wing_flaps_mid;
-    poz_motors[0] = ESC_STOP;
+    poz_servos[0] = raw_servos[0] = carma_mid;
+    poz_servos[1] = raw_servos[1] = wing_flaps_mid;
+    poz_motors[0] = raw_motors[0] = ESC_STOP;
+  
 }
 
 void setup()
@@ -249,10 +259,10 @@ void setup()
     for (uint8_t i = 0; i < 2; i++)
     {
         PORT_TEST |= (1 << PIN_TEST);
-        PORT_TEST |= (1 << PIN_SPK);
+        //PORT_TEST |= (1 << PIN_SPK);
         _delay_ms(500);
         PORT_TEST &= ~(1 << PIN_TEST);
-        PORT_TEST &= ~(1 << PIN_SPK);
+        //PORT_TEST &= ~(1 << PIN_SPK);
         _delay_ms(500);
     }
     PORT_TEST |= (1 << PIN_TEST);
@@ -373,19 +383,17 @@ void return_home()
 {
     //compute the angle of ze carma so that the boat will return home
     if(sonar_distance < get_settings_value_float(RETURN_HOME_DISTANCE_POS)) {
-        poz_motors[0] = ESC_STOP;
+        raw_motors[0] = poz_motors[0] = ESC_STOP;
         servo_set_cmd(2, poz_motors[0]);
     }
     else
     {
-        poz_motors[0] = get_settings_value_int(MOTOR_RETURN_POWER_POS);
+        raw_motors[0] = poz_motors[0] = get_settings_value_int(MOTOR_RETURN_POWER_POS);
         servo_set_cmd(2, poz_motors[0]);
         uint32_t carma_mid = get_settings_value_int(CARMA_POS);
         uint32_t up_carma = update_carma(&return_home_context, yaw) * 5 + carma_mid;
-        sprintf(msg,"%ld\r\n", up_carma);
-        USART0_print(msg);
-        poz_servos[1] = limit_servo(up_carma, carma_mid + 300, carma_mid - 300);
-        servo_set_cmd(1, poz_servos[1]);
+        poz_servos[0] = limit_servo(up_carma, carma_mid + 300, carma_mid - 300);
+        servo_set_cmd(1, poz_servos[0]);
     }
 }
 
@@ -394,8 +402,7 @@ void return_home_initialization()
     initialize_pid_contex(&return_home_context, dt, starting_direction);
     load_weights(&return_home_context, get_settings_value_float(KP_POS), get_settings_value_float(KI_POS),
                     get_settings_value_float(KD_POS));
-    poz_motors[0] = get_settings_value_int(MOTOR_RETURN_POWER_POS);
-    raw_motors[0] = get_settings_value_int(MOTOR_RETURN_POWER_POS);
+    raw_motors[0] = poz_motors[0] = get_settings_value_int(MOTOR_RETURN_POWER_POS);
     raw_servos[0] = get_settings_value_int(CARMA_POS);
     raw_servos[1] = get_settings_value_int(WING_FLAPS_POS);
     servo_set_cmd(2, poz_motors[0]); //set a low speed for returning home
@@ -420,7 +427,7 @@ void onparse(int cmd, long *data, int ndata)
 
     uint32_t wing_flaps_mid = get_settings_value_int(WING_FLAPS_POS);
     uint32_t carma_mid = get_settings_value_int(CARMA_POS);
-    
+
     switch (cmd)
     {
     case 1:
@@ -430,14 +437,14 @@ void onparse(int cmd, long *data, int ndata)
         // data[0] is cmd
         break;
     case WING_FLAPS:
-        raw_servos[1] = limit_servo(data[1] * 5 + carma_mid, carma_mid+300, carma_mid - 300);
+        raw_servos[1] = limit_servo(data[1] * 5 + wing_flaps_mid, wing_flaps_mid + 300, wing_flaps_mid - 300);
         break;
     case SINK_ANGLE:
         raw_motors[0] = (data[1] < 0 ? 0 : data[1]) * 8 + ESC_START;
         sink_angle = data[2];
         break;
     case CARMA:
-        raw_servos[0] = limit_servo(data[2] * 5 + wing_flaps_mid, wing_flaps_mid + 300, wing_flaps_mid - 300);
+        raw_servos[0] = limit_servo(data[2] * 5 + carma_mid, carma_mid+300, carma_mid - 300);
         break;
     case CMD_SAVE_SETTINGS:
         save_setting();
@@ -486,11 +493,13 @@ void onparse(int cmd, long *data, int ndata)
         return_home_engaged = 1;
         return_home_initialization();
         beep();
+        msg_received = 0;
         break;
     case RETURN_CONTROL:
         USART0_print("9000, return control\r\n");
         opperation_mode = NORMAL_MODE;
         return_home_engaged = 0;
+        raw_motors[0] = ESC_START;
         beep();
         break;
 
@@ -647,8 +656,12 @@ void loop()
         {
             msg_received = 0;
             lost_connection_counter = 0;
-            if( !return_home_engaged)
+            if( opperation_mode == RETURN_HOME && !return_home_engaged)
+            {
+                raw_motors[0] = poz_motors[0] = ESC_START;
+                servo_set_cmd(2, ESC_START);
                 opperation_mode = NORMAL_MODE;
+            }
         }
         else if (opperation_mode != RETURN_HOME)
         {
@@ -658,12 +671,12 @@ void loop()
         //after 2 seconds with no signal from the bluetooth, turn off the motor
         if (lost_connection_counter == 100)
         {
-            poz_motors[0] = ESC_START;
+            raw_motors[0] = poz_motors[0] = ESC_STOP;
             servo_set_cmd(2, poz_motors[0]);
         }
 
-        //after 30 more seconds, start the return home procedure
-        if(lost_connection_counter == 1600)
+        //after 10 more seconds, start the return home procedure
+        if(lost_connection_counter == 600)
         {
             lost_connection_counter++;
             opperation_mode = RETURN_HOME;
@@ -671,17 +684,30 @@ void loop()
         }
     }
 
+        // [AP] aici mai avem un pas intermediar, sa astepte 5 min (opreste motor, asteapta timer) inainte sa se intoarca
+    //done above
+    if (opperation_mode == RETURN_HOME) 
+    {
+        return_home();
+        if( trigger_buzzer)
+        {
+            trigger_buzzer = 0;
+            PORT_TEST ^= (1 << PIN_SPK);
+        }
+    }
+
     float alph;
     if( update_servos == 1) 
     {
         update_servos = 0;
-        
+
         alph = get_settings_value_float(ALPHA_CARMA_SERVO);
-        poz_servos[0] = alph * poz_servos[0] + (1 - alph) * raw_servos[0];
+        poz_servos[0] = (int)(alph * (float)poz_servos[0] + (1 - alph) * (float)raw_servos[0]);
         servo_set_cmd(0, poz_servos[0]);
 
         alph = get_settings_value_float(ALPHA_WINGS_SERVO);
-        poz_servos[1] = alph * poz_servos[1] + (1 - alph) * raw_servos[1];
+        poz_servos[1] = (int)(alph * (float)poz_servos[1] + (1 - alph) * (float)raw_servos[1]);
+        
         servo_set_cmd(1, poz_servos[1]);
 
         if(opperation_mode != AWAITING_START)
@@ -697,14 +723,7 @@ void loop()
         update_pump = 0;
         alph = get_settings_value_float(ALPHA_PUMP_SOFT_START);
         OCR0B = alph * OCR0B + (1 - alph) * ((uint32_t)OCR0A) * get_settings_value_int(PUMP_DUTY_CYCLE) / 100;
-        USART0_print(msg);
     }
-
-    // [AP] aici mai avem un pas intermediar, sa astepte 5 min (opreste motor, asteapta timer) inainte sa se intoarca
-    //done above
-    if (opperation_mode == RETURN_HOME)
-        return_home();
-
 
     if (opperation_mode == ASSISTED_SINK_MODE)
     {
