@@ -2,8 +2,14 @@
 #define SINK_ANGLE 6
 #define WING_FLAPS 2
 #define MOTOR 8
-#define RETURN_HOME_BUTTON 4
-#define RETURN_CONTROL 5
+#define SET_SAIL 4
+#define HARBOUR 5
+
+#define RETURN_HOME_BUTTON 102
+#define RETURN_CONTROL 103
+
+#define START_PUMP 131
+#define STOP_PUMP 132
 
 #define READ_MPU 10
 #define WRITE_MPU_A 11
@@ -37,3 +43,6 @@
 #define N_SERVOS 2
 int poz_servos[N_SERVOS];
 int poz_motors[N_MOTORS];
+
+int raw_servos[N_SERVOS];
+int raw_motors[N_MOTORS];

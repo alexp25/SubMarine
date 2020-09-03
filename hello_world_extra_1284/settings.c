@@ -19,10 +19,9 @@ int32_t get_settings_value_int(int32_t code)
 
 void update_settings_type_values(){
     uint8_t i;
-    char msg[20];
     for(i=0; i< NUM_SETTINGS; i++) {
         if(settings_type[i]) {
-            settings_int[ settings_idx[i]] = settings[i]/10000;
+            settings_int[ settings_idx[i]] = settings[i];
         }
         else
             UPDATE_SETTING(settings_float[ settings_idx[i]], settings[i]);
@@ -38,16 +37,22 @@ void initialize_default()
     settings[EGX_POS] = 22130;
     settings[EGY_POS] = -2790;
     settings[EGZ_POS] = 770;
-    settings[EMX_POS] = 810000;
-    settings[EMY_POS] = 2670000;
-    settings[EMZ_POS] = -1240000;
+    settings[EMX_POS] = 81;
+    settings[EMY_POS] = 267;
+    settings[EMZ_POS] = -124;
     settings[KP_POS] = 5000;
     settings[KI_POS] = 5000;
     settings[KD_POS] = 5000;
-    settings[CARMA_POS] = 15000000;
-    settings[WING_FLAPS_POS] = 15000000;
-    settings[MOTOR_RETURN_POWER_POS] = 15000000;
-    settings[RETURN_HOME_DISTANCE_POS] = 100000;
+    settings[CARMA_POS] = 1500;
+    settings[WING_FLAPS_POS] = 1500;
+    settings[MOTOR_RETURN_POWER_POS] = 1500;
+    settings[RETURN_HOME_DISTANCE_POS] = 500000;
+    settings[ALPHA_CARMA_PID] = 9000;
+    settings[ALPHA_CARMA_SERVO] = 9000;
+    settings[ALPHA_WINGS_SERVO] = 9000;
+    settings[ALPHA_ESC] = 9000;
+    settings[ALPHA_PUMP_SOFT_START] = 9000;
+    settings[PUMP_DUTY_CYCLE] = 25; 
 }
 
 void initialize_settings()
@@ -113,6 +118,26 @@ void initialize_settings()
     settings_type[RETURN_HOME_DISTANCE_POS] = 0;
     settings_idx[RETURN_HOME_DISTANCE_POS] = 9;
 
+    settings_type[ALPHA_CARMA_PID] = 0;
+    settings_idx[ALPHA_CARMA_PID] = 10;
+
+
+    settings_type[ALPHA_CARMA_SERVO] = 0;
+    settings_idx[ALPHA_CARMA_SERVO] = 11;
+
+    settings_type[ALPHA_WINGS_SERVO] = 0;
+    settings_idx[ALPHA_WINGS_SERVO] = 12;
+
+    settings_type[ALPHA_ESC] = 0;
+    settings_idx[ALPHA_ESC] = 13;
+
+    settings_type[ALPHA_PUMP_SOFT_START] = 0;
+    settings_idx[ALPHA_PUMP_SOFT_START] = 14;
+
+    settings_type[PUMP_DUTY_CYCLE] = 1;
+    settings_idx[PUMP_DUTY_CYCLE] = 7;
+
+
     update_settings_type_values();
 }
 
@@ -131,19 +156,29 @@ void show_list()
             msg_settings[0]=0;
         }
     }
-    strcat(msg_settings,"\n");
+    strcat(msg_settings,",");
     USART0_print(msg_settings);
+
+    msg_settings[0]=0;
+    for (i = 0; i < NUM_SETTINGS; i++)
+    {
+        char *res = (char *)pgm_read_word(&(settings_labels[i]));
+        strcpy_P(msg_settings, res);
+        if( i < NUM_SETTINGS - 1)
+            strcat(msg_settings, ",");
+        USART0_print(msg_settings);
+    }
+    USART0_print("\n");
 }
 
 void update_setting(int32_t code, int32_t value) 
 {
     settings[code] = value;
     if(settings_type[code])
-        settings_int[ settings_idx[code]] = value/10000;
+        settings_int[ settings_idx[code]] = value;
     else
         UPDATE_SETTING(settings_float[ settings_idx[code]], value)
 }
-
 
 void save_setting()
 {
@@ -151,3 +186,71 @@ void save_setting()
     for(i=0; i<NUM_SETTINGS; i++) 
         eeprom_write_dword( (uint32_t*)(i<<2),settings[i]);
 }
+
+const char settings_label_1[] = "SENTINEL";
+const char settings_label_2[] = "EAX";
+const char settings_label_3[] = "EAY";
+const char settings_label_4[] = "EAZ";
+
+const char settings_label_5[] = "EGX";
+const char settings_label_6[] = "EGY";
+const char settings_label_7[] = "EGZ";
+
+const char settings_label_8[] = "EMX";
+const char settings_label_9[] = "EMY";
+const char settings_label_10[] = "EMZ";
+
+const char settings_label_11[] = "KP";
+const char settings_label_12[] = "KI";
+const char settings_label_13[] = "KD";
+
+const char settings_label_14[] = "CARMA_BIAS";
+const char settings_label_15[] = "WING_FLAPS_BIAS";
+const char settings_label_16[] = "MOTOR_RETURN_HOME_POWER";
+
+const char settings_label_17[] = "RETURN_HOME_DISTANCE";
+
+const char settings_label_18[] = "ALPHA_CARMA_PID";
+const char settings_label_19[] = "ALPHA_CARMA_SERVO";
+const char settings_label_20[] = "ALPHA_WINGS_SERVO";
+const char settings_label_21[] = "ALPHA_ESC";
+const char settings_label_22[] = "ALPHA_PUMP_SOFT_START";
+
+const char settings_label_23[] = "PUMP_DUTY_CYCLE";
+
+const char *const settings_labels[] =
+    {
+
+        settings_label_1,
+        settings_label_2,
+        settings_label_3,
+        settings_label_4,
+
+        settings_label_5,
+        settings_label_6,
+
+        settings_label_7,
+        settings_label_8,
+        settings_label_9,
+
+        settings_label_10,
+        settings_label_11,
+        settings_label_12,
+
+        settings_label_13,
+        settings_label_14,
+
+        settings_label_15,
+        settings_label_16,
+        settings_label_17,
+        settings_label_18,
+
+        settings_label_19,
+
+        settings_label_20,
+
+        settings_label_21,
+
+        settings_label_22,
+
+        settings_label_23};
