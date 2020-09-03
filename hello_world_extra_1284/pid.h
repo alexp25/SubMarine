@@ -26,4 +26,4 @@ void load_weights(struct pid_context * context,float new_kp, float new_ki, float
 void change_target(struct pid_context * context, float new_target);
 
 //update a context
-int update_pid(struct pid_context * context, float yaw);
+int update_carma(struct pid_context * context, float yaw);

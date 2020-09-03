@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <string.h>
+#include "settings.h"
 #include "pid.h"
 
 void initialize_pid_contex(struct pid_context* context, float dt, float target)
@@ -25,13 +26,13 @@ void change_target(struct pid_context * context, float new_target)
 
 //update a context
 // [AP] poate fi redenumita eventual pt ca e doar pt carma, nu e chiar generic in forma actuala (atunci poti ignora comentariile de mai jos, mai putin primul)
-int update_pid(struct pid_context * context, float yaw){
+int update_carma(struct pid_context * context, float yaw){
     char dir = 0;
     float st,dr;
     st = context->yaw_target - yaw;
 
     // [AP] nu neaparat, comanda poate fi != 0 oricum pt ca mai e integrala si derivata
-    if( st == 0) return 0;
+    //if( st == 0) return 0;
 
     // [AP] e putin ambiguu aici, ca ai combinat partea de busola cu pid-ul
     // functia asta ar trb sa fie mai generica, nu doar pt carma dupa busola
@@ -63,8 +64,10 @@ int update_pid(struct pid_context * context, float yaw){
     if( context->acc < -MAX_ACC)
         context->acc = MAX_ACC;
 
+    float alph = get_settings_value_float(ALPHA_CARMA_PID);
+
     // [AP] alpha dat ca parametru, la fel ca si kp, ki, kd (in context)
-    context->der = 0.95f * context->der + 0.05f * context->epsilon / context->dt;
+    context->der = alph * context->der + (1 - alph) * context->epsilon / context->dt;
 
     // [AP] MAX_STEER e specific pt carma, poate fi ca parametru (in context)
     float steering_value =   context->kp * context->epsilon + context->ki * context->acc + context->kd * context->der;
