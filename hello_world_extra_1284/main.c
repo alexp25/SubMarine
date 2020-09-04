@@ -514,7 +514,9 @@ void onparse(int cmd, long *data, int ndata)
         raw_motors[0] = ESC_START;
         servo_set_cmd(2, poz_motors[0]);
         set_sail_engaged = 1;
-        starting_direction = yaw;
+        starting_direction = yaw - 180;
+        if(starting_direction < 0)
+            starting_direction += 360
         beep();
         break;
     case HARBOUR:
