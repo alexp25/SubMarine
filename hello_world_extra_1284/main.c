@@ -15,6 +15,7 @@
 #include "string_utils.h"
 #include "settings.h"
 #include "pid.h"
+#include "time_utils.h"
 
 #define DDR_TEST DDRA
 #define PORT_TEST PORTA
@@ -49,6 +50,19 @@ float roll, pitch, yaw;
 
 //set to one if you want to calibrate the magnetometer
 int calibrate_magnetometer = 0;
+
+uint32_t bench = 0, bench_ts = 0, ts_start = 0;
+
+int lost_connection_counter;
+char msg_received;
+
+float starting_direction = 0;
+struct pid_context return_home_context;
+float dt = 0.02;
+
+uint8_t return_home_engaged = 0;
+uint8_t set_sail_engaged = 0;
+
 
 void gpio_init()
 {
@@ -167,6 +181,7 @@ ISR(ADC_vect)
 //pump trigger
 uint8_t pump_engaged = 0;
 uint8_t trigger_buzzer = 0;
+uint8_t trigger_buzzer_counter = 0;
 
 ISR(TIMER0_COMPA_vect)
 {
@@ -191,11 +206,26 @@ ISR(TIMER0_COMPA_vect)
         sw_sonar_activation = 0;
     }
 
+
+    if(sw_buzzer_activation == 1){
+        if(trigger_buzzer || trigger_buzzer_counter>0){
+            // PORT_TEST ^= (1 << PIN_SPK);
+            PORT_TEST |= (1 << PIN_SPK);
+        } else {
+            PORT_TEST &= ~(1 << PIN_SPK);
+        }  
+    }
+    if(sw_buzzer_activation == 100){
+        if(trigger_buzzer || trigger_buzzer_counter>0){
+            PORT_TEST &= ~(1 << PIN_SPK);
+        }  
+    }
     if(sw_buzzer_activation == 500) {
         sw_buzzer_activation = 0;
-        trigger_buzzer = 1;
+        if(trigger_buzzer_counter>0){
+            trigger_buzzer_counter--;
+        }
     }
-
 }
 
 ISR(TIMER0_COMPB_vect)
@@ -205,7 +235,7 @@ ISR(TIMER0_COMPB_vect)
 }
 
 #define ESC_STOP 1000
-#define ESC_START 1200
+#define ESC_START 1150
 
 /*
  * 0 - aripi
@@ -252,7 +282,7 @@ void setup()
 
     USART0_init(115200);
 
-    USART0_print("hello world\r\n");
+    USART0_print("9000,hello world\r\n");
 
     sei();
 
@@ -279,12 +309,13 @@ void setup()
     init_adc();
     initialize_servos();
 
+    // timekeeper
+    setup_timer();
+
     opperation_mode = AWAITING_START;
+
+    beep_n(2);
 }
-
-
-uint8_t return_home_engaged = 0;
-uint8_t set_sail_engaged = 0;
 
 
 void send_status()
@@ -294,18 +325,22 @@ void send_status()
 
     append_command(mesaj, OUT_STATUS);
     append_int(mesaj, set_sail_engaged);
+
     append_int(mesaj,0);
     append_int(mesaj,0);
     append_int(mesaj,0);
     append_int(mesaj,0);
     append_int(mesaj,0);
     append_int(mesaj,0);
-    append_int(mesaj,0);
-    append_int(mesaj,0);
-    append_int(mesaj,0);
+
+    append_int(mesaj,bench);
+    append_int(mesaj,bench_ts);
     append_int(mesaj,return_home_engaged);
+
     append_int(mesaj,0);
     append_int(mesaj,0);
+    append_int(mesaj,0);
+    
     append_int(mesaj,pump_engaged);
     append_int(mesaj,0);
     strcat(mesaj,"\n");
@@ -328,11 +363,13 @@ void send_sensors_data()
     USART0_print(mesaj);
     mesaj[0] = 0;
     append_float(mesaj, 0);
+    // append_float(mesaj, current);
     append_float(mesaj, current);
     append_float(mesaj, 0);
     append_float(mesaj, 0);
     append_float(mesaj, 0);
-    append_float(mesaj, yaw);
+    // append_float(mesaj, yaw);
+    append_float(mesaj, starting_direction);    
     append_float(mesaj, sonar_distance);
     append_float(mesaj, bat1);
     append_float(mesaj, 0);
@@ -350,22 +387,15 @@ void send_motors_data()
     append_int(mesaj, N_MOTORS);
     append_int(mesaj, N_SERVOS);
     for (i = 0; i < N_MOTORS; i++)
-        append_float(mesaj, ( (float)(poz_motors[i] - 1000) ) / 2000);
+        append_float(mesaj,  ( (float)(poz_motors[i]) - 1000) * 100.0 / (2000 - 1000));
 
     for (i = 0; i < N_SERVOS; i++)
-        append_float(mesaj, ( (float)(poz_servos[i] - 1000) ) / 2000);
+        append_float(mesaj, ( (float)(poz_servos[i]) - 1000) * 100.0 / (2000 - 1000));
 
     strcat(mesaj, "\n");
     USART0_print(mesaj);
 }
 
-
-int lost_connection_counter;
-char msg_received;
-
-float starting_direction = 500;
-struct pid_context return_home_context;
-float dt = 0.02;
 
 inline int limit_servo(int x, int upper, int lower)
 {
@@ -392,13 +422,14 @@ void return_home()
         servo_set_cmd(2, poz_motors[0]);
         uint32_t carma_mid = get_settings_value_int(CARMA_POS);
         uint32_t up_carma = update_carma(&return_home_context, yaw) * 5 + carma_mid;
-        poz_servos[0] = limit_servo(up_carma, carma_mid + 300, carma_mid - 300);
-        servo_set_cmd(1, poz_servos[0]);
+        raw_servos[0] = limit_servo(up_carma, carma_mid + 300, carma_mid - 300);
     }
 }
 
 void return_home_initialization()
 {
+    // use last heading as reference (keep going straight ahead)
+    starting_direction = yaw;
     initialize_pid_contex(&return_home_context, dt, starting_direction);
     load_weights(&return_home_context, get_settings_value_float(KP_POS), get_settings_value_float(KI_POS),
                     get_settings_value_float(KD_POS));
@@ -410,9 +441,16 @@ void return_home_initialization()
 
 void beep()
 {
-    PORT_TEST |= (1 << PIN_SPK);
-    _delay_ms(10);
-    PORT_TEST &= ~(1 << PIN_SPK);
+    // PORT_TEST |= (1 << PIN_SPK);
+    // _delay_ms(10);
+    // PORT_TEST &= ~(1 << PIN_SPK);
+    sw_buzzer_activation = 0;
+    trigger_buzzer_counter = 1;
+}
+
+void beep_n(uint8_t n){
+    sw_buzzer_activation = 0;
+    trigger_buzzer_counter = n;
 }
 
 void onparse(int cmd, long *data, int ndata)
@@ -439,7 +477,7 @@ void onparse(int cmd, long *data, int ndata)
     case WING_FLAPS:
         raw_servos[1] = limit_servo(data[1] * 5 + wing_flaps_mid, wing_flaps_mid + 300, wing_flaps_mid - 300);
         break;
-    case SINK_ANGLE:
+    case CMD_POWER:
         raw_motors[0] = (data[1] < 0 ? 0 : data[1]) * 8 + ESC_START;
         sink_angle = data[2];
         break;
@@ -596,6 +634,10 @@ void loop()
 
     if (mpu_state == 1)
     {
+        uint32_t t0 = micros();
+        uint32_t t1 = millis();
+        bench_ts = t1 - ts_start;
+        ts_start = t1;
         check_adc_module();
         read_adc();
         current = 0.9 * current + (float)adc_value * 7.33 / 1024 - 3.67;
@@ -637,6 +679,8 @@ void loop()
             pitch = pitch - err_pitch;
             //yaw = yaw - err_yaw;
         }
+
+        bench = micros() - t0;
     }
 
     if (sonar_activated == 1)
@@ -689,11 +733,9 @@ void loop()
     if (opperation_mode == RETURN_HOME) 
     {
         return_home();
-        if( trigger_buzzer)
-        {
-            trigger_buzzer = 0;
-            PORT_TEST ^= (1 << PIN_SPK);
-        }
+        trigger_buzzer = 1;
+    } else {
+        trigger_buzzer = 0;
     }
 
     float alph;

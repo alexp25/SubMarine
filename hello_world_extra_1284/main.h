@@ -1,5 +1,7 @@
+#include <stdint.h>
+
 #define CARMA 2
-#define SINK_ANGLE 6
+#define CMD_POWER 6
 #define WING_FLAPS 7
 #define MOTOR 8
 #define SET_SAIL 4
@@ -46,3 +48,6 @@ int poz_motors[N_MOTORS];
 
 int raw_servos[N_SERVOS];
 int raw_motors[N_MOTORS];
+
+void beep();
+void beep_n(uint8_t n);

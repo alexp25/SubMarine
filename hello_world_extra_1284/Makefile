@@ -1,5 +1,5 @@
 # PORT ?= /dev/ttyUSB0
-PORT ?= COM4
+PORT ?= COM8
 CFLAGS=-Wl,-u,vfprintf -lprintf_flt -lm -lc
 # CFLAGS=-lc -lm
 

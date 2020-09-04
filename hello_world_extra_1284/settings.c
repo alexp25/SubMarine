@@ -41,8 +41,8 @@ void initialize_default()
     settings[EMY_POS] = 267;
     settings[EMZ_POS] = -124;
     settings[KP_POS] = 5000;
-    settings[KI_POS] = 5000;
-    settings[KD_POS] = 5000;
+    settings[KI_POS] = 1000;
+    settings[KD_POS] = 0;
     settings[CARMA_POS] = 1500;
     settings[WING_FLAPS_POS] = 1500;
     settings[MOTOR_RETURN_POWER_POS] = 1500;
