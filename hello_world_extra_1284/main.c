@@ -354,25 +354,24 @@ void send_sensors_data()
 
     append_command(mesaj, OUT_SENSOR_DATA);
 
-    append_int(mesaj, (int)roll);
-    append_int(mesaj, (int)pitch);
-    append_int(mesaj, (int)yaw);
-    append_float(mesaj, 0);
-    append_float(mesaj, 0);
-    append_float(mesaj, 0);
-    USART0_print(mesaj);
+    append_int(mesaj, (int)pitch);                       //1
+    append_int(mesaj, (int)roll);                      //2
+    append_float(mesaj, 0);                             //3
+    append_int(mesaj, (int)yaw);                        //4
+    append_float(mesaj, 0);                             //5
+    append_float(mesaj, 0);                             //6
+    USART0_print(mesaj);        
     mesaj[0] = 0;
-    append_float(mesaj, 0);
+    append_float(mesaj, 0);                             //7
     // append_float(mesaj, current);
-    append_float(mesaj, current);
-    append_float(mesaj, 0);
-    append_float(mesaj, 0);
-    append_float(mesaj, 0);
-    // append_float(mesaj, yaw);
-    append_float(mesaj, starting_direction);    
-    append_float(mesaj, sonar_distance);
-    append_float(mesaj, bat1);
-    append_float(mesaj, 0);
+    append_float(mesaj, current);                       //8
+    append_float(mesaj, 0);                             //9
+    append_float(mesaj, 0);                             //10
+    append_float(mesaj, 0);                             //11
+    append_float(mesaj, starting_direction);            //12    
+    append_float(mesaj, sonar_distance);                //13
+    append_float(mesaj, bat1);                          //14
+    append_float(mesaj, 0);                             //15
     strcat(mesaj, "\n");
     USART0_print(mesaj);
 }
