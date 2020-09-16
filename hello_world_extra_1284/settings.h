@@ -7,9 +7,9 @@
 
 #define EEPROM_SENTINEL 0xFA
 #define EEPROM_DEFAULTS 0x00
-#define NUM_SETTINGS 23
-#define NUM_SET_FLOAT 15
-#define NUM_SET_INT 8
+#define NUM_SETTINGS 25
+#define NUM_SET_FLOAT 16
+#define NUM_SET_INT 9
 extern int32_t settings[NUM_SETTINGS];
 extern float settings_float[NUM_SET_FLOAT];
 extern int32_t settings_int[NUM_SET_INT];
@@ -49,6 +49,8 @@ uint8_t print_labels(uint8_t page, char *str);
 #define ALPHA_ESC 20
 #define ALPHA_PUMP_SOFT_START 21
 #define PUMP_DUTY_CYCLE 22
+#define STEPPER_MAX_VALUE 23
+#define MOTOR_MAX_TEMP 24
 
 extern const char settings_label_1[] PROGMEM;
 extern const char settings_label_2[] PROGMEM;
@@ -83,5 +85,7 @@ extern const char settings_label_21[] PROGMEM;
 extern const char settings_label_22[] PROGMEM;
 extern const char settings_label_23[] PROGMEM;
 
+extern const char settings_label_24[] PROGMEM;
+extern const char settings_label_25[] PROGMEM;
 
 extern const char *const settings_labels[] PROGMEM;

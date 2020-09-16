@@ -16,11 +16,21 @@
 #include "settings.h"
 #include "pid.h"
 #include "time_utils.h"
+#include "stepper.h"
 
 #define DDR_TEST DDRA
 #define PORT_TEST PORTA
 #define PIN_TEST PA6
 #define PIN_SPK PA7
+
+#define DDR_STEPPER DDRA
+#define PORT_STEPPER PORTA
+#define STEPPER_PIN PINA
+#define STEPPER_0_PIN PA0
+#define STEPPER_100_PIN PA1
+#define PCIE_STEPPER PCIE0
+#define PCMSK_STEPPER PCMSK1
+#define STEPPER_PCINT PCINT0_vect
 
 #define TRIGGER_PIN PB0
 #define ECHO_PIN PB1
@@ -63,7 +73,6 @@ float dt = 0.02;
 uint8_t return_home_engaged = 0;
 uint8_t set_sail_engaged = 0;
 
-
 void gpio_init()
 {
     DDR_TEST |= (1 << PIN_TEST) | (1 << PIN_SPK);
@@ -78,14 +87,26 @@ void gpio_init()
     DDRC |= (1 << PUMP_PWM_PIN);
     PORTC &= ~(1 << PUMP_PWM_PIN);
 
+    DDR_STEPPER &= ~( 1 << STEPPER_0_PIN)
+    PORT_STEPPER &= ~( 1 << STEPPER_0_PIN)
+
+    DDR_STEPPER &= ~( 1 << STEPPER_100_PIN)
+    PORT_STEPPER &= ~( 1 << STEPPER_100_PIN)
+
     //interrupts on the echo pin
     PCICR |= (1 << PCIE1);
     PCMSK1 |= (1 << PCINT9);
+
+    //interrupts for the stepper
+    PCICR |= ( 1 << PCIE_STEPPER);
+    PCMSK_STEPPER |= ( 1 << STEPPER_0_PIN);
+    PCMSK_STEPPER |= ( 1 << STEPPER_100_PIN);
 }
+
 
 void init_mpu_timer()
 {
-    //250Hz
+    //1KHz
     OCR0A = 249;
     OCR0B =  0;
     TCCR0A = 0;
@@ -143,6 +164,55 @@ ISR(PCINT1_vect)
     }
 }
 
+/*
+Stepper motor variables
+*/
+volatile uint16_t stepper_counter = 0;
+volatile uint8_t start_stepper_motor;
+
+#define STEPPER_ZERO_TRIGGERED 0
+#define STEPPER_WORKING 2
+#define STEPPER_HUNDRED_TRGGERED 1
+volatile uint8_t stepper_state = STEPPER_WORKING;
+uint16_t stepper_target = 0;
+uint32_t stepper_max_value;
+
+ISR(STEPPER_PCINT)
+{
+    if( STEPPER_PIN & ( 1 << STEPPER_0_PIN) )
+    {
+        start_stepper_motor = 0;
+        stepper_state = STEPPER_ZERO_TRIGGERED;
+    }
+    else if( STEPPER_PIN & ( 1 << STEPPER_100_PIN) )
+    {
+        start_stepper_motor = 0;
+        stepper_state = STEPPER_HUNDRED_TRGGERED;
+    } 
+}
+
+void stepper_calibrate()
+{
+    USART0_print("9000,starting stepper calibration\r\n");
+    start_stepper_motor = 1;
+    stepper_max_value = 0;
+    while(start_stepper_motor)
+    {
+        full_step();
+    }
+    stepper_direction = 0;
+    start_stepper_motor = 0;
+    while(start_stepper_motor)
+    {
+        full_step();
+        stepper_max_value++;
+    }
+    sprintf(msg, "9000, stepper_max_value is: %d\r\n", stepper_max_value);
+    USART0_print(msg);
+    update_setting(STEPPER_MAX_VALUE, stepper_max_value);
+    save_setting();
+}
+
 void init_adc()
 {
     DDRA &= ~(1 << PA0);
@@ -162,6 +232,7 @@ void init_adc()
 volatile uint8_t sw_mpu_read_trigger;
 volatile uint8_t sw_sonar_activation;
 volatile uint16_t sw_buzzer_activation;
+volatile uint8_t sw_stepper_activation;
 /*
  * 0 - idle
  * 1 - read data from twi
@@ -172,6 +243,7 @@ volatile uint16_t adc_value;
 volatile uint8_t check_connection;
 volatile uint8_t update_servos;
 volatile uint8_t update_pump;
+volatile uint8_t stepper_activated;
 
 ISR(ADC_vect)
 {
@@ -191,6 +263,7 @@ ISR(TIMER0_COMPA_vect)
     sw_mpu_read_trigger++;
     sw_sonar_activation++;
     sw_buzzer_activation++;
+    sw_stepper_activation++;
 
     if (sw_mpu_read_trigger == 20)
     {
@@ -206,6 +279,10 @@ ISR(TIMER0_COMPA_vect)
         sw_sonar_activation = 0;
     }
 
+    if(sw_stepper_activation == 5) {
+        stepper_activated = 1;
+        sw_stepper_activation = 0;
+    }
 
     if(sw_buzzer_activation == 1){
         if(trigger_buzzer || trigger_buzzer_counter>0){
@@ -311,6 +388,12 @@ void setup()
 
     // timekeeper
     setup_timer();
+
+    //setup stepper
+    init_stepper();
+
+    //stepper_motor_calibration
+    stepper_calibrate();
 
     opperation_mode = AWAITING_START;
 
@@ -557,6 +640,16 @@ void onparse(int cmd, long *data, int ndata)
         reset = 1;
         beep();
         break;
+    
+    case SLIDERS:
+        stepper_target = ( (float)(data[4]-1000) ) * get_settings_value_int(STEPPER_MAX_VALUE) / 1000;
+        if( stepper_counter > stepper_target){
+            stepper_direction = 0;
+        }
+        else if( stepper_counter < stepper_target){
+            stepper_direction = 1;
+        }
+        break;
     }
 }
 
@@ -766,6 +859,31 @@ void loop()
         update_pump = 0;
         alph = get_settings_value_float(ALPHA_PUMP_SOFT_START);
         OCR0B = alph * OCR0B + (1 - alph) * ((uint32_t)OCR0A) * get_settings_value_int(PUMP_DUTY_CYCLE) / 100;
+    }
+
+    
+    if(stepper_activated == 1)
+    {
+        //a stepper step has been triggered( at 200HZ)
+        stepper_activated = 0;
+
+        //if the target is reached, stop the process
+        if( stepper_counter == stepper_target)
+        {
+            start_stepper_motor = 0;
+            stepper_state = stepper_direction;
+        }
+
+        if( start_stepper_motor) //if the target has not been reached, do a step
+        {
+            stepper_counter += stepper_direction == 1 ? 1 : -1;
+            full_step();
+        } 
+        else if( stepper_state != stepper_direction) {  //if the direction has been changed, do a step 
+            start_stepper_motor = 1;                    //and start moving
+            stepper_counter += stepper_direction == 1 ? 1 : -1;
+            full_step();
+        } 
     }
 
     if (opperation_mode == ASSISTED_SINK_MODE)

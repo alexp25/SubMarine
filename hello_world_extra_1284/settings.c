@@ -53,6 +53,8 @@ void initialize_default()
     settings[ALPHA_ESC] = 9000;
     settings[ALPHA_PUMP_SOFT_START] = 9000;
     settings[PUMP_DUTY_CYCLE] = 25; 
+    settings[STEPPER_MAX_VALUE] = 100;
+    settings[MOTOR_MAX_TEMP] = 70;
 }
 
 void initialize_settings()
@@ -137,6 +139,11 @@ void initialize_settings()
     settings_type[PUMP_DUTY_CYCLE] = 1;
     settings_idx[PUMP_DUTY_CYCLE] = 7;
 
+    settings_type[STEPPER_MAX_VALUE] = 1;
+    settings_idx[STEPPER_MAX_VALUE] = 8;
+
+    settings_type[MOTOR_MAX_TEMP] = 0;
+    settings_idx[MOTOR_MAX_TEMP] = 15;
 
     update_settings_type_values();
 }
@@ -217,6 +224,8 @@ const char settings_label_21[] = "ALPHA_ESC";
 const char settings_label_22[] = "ALPHA_PUMP_SOFT_START";
 
 const char settings_label_23[] = "PUMP_DUTY_CYCLE";
+const char settings_label_24[] = "STEPPER_MAX_CYCLES";
+const char settings_label_25[] = "MOTOR_MAX_TEMPERATURE";
 
 const char *const settings_labels[] =
     {
@@ -253,4 +262,6 @@ const char *const settings_labels[] =
 
         settings_label_22,
 
-        settings_label_23};
+        settings_label_23,
+        settings_label_24,
+        settings_label_25};
