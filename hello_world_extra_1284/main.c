@@ -761,7 +761,7 @@ void loop()
         check_adc_module();
         read_adc();
         current = 0.9 * current + (float)adc_value * 7.33 / 1024 - 3.67;
-        motor_temperature = 0.9 * motor_temperature + ((float)motor_temp_adc * 14) / 1024 - 4;
+        motor_temperature = 0.9 * motor_temperature + ((float)motor_temp_adc * 500) / 1024;
         //current = 0.9 * current + 0.1 * ( (float)adc_value *5 / 1024);
         mpu9250_v2_read();
         mpu9250_readMagData();
@@ -876,6 +876,8 @@ void loop()
         if(opperation_mode != AWAITING_START)
         {
             alph = get_settings_value_float(ALPHA_ESC);
+            if( motor_temperature > get_settings_value_float(MOTOR_MAX_TEMP))
+                raw_motors[0] = ESC_START;
             poz_motors[0] = alph * poz_motors[0] + (1 - alph) * raw_motors[0];
             servo_set_cmd(2, poz_motors[0]);
         }
