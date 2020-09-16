@@ -761,7 +761,7 @@ void loop()
         check_adc_module();
         read_adc();
         current = 0.9 * current + (float)adc_value * 7.33 / 1024 - 3.67;
-        motor_temperature = 0.9 * motor_temperature + ((float)motor_temp_adc * 500) / 1024;
+        motor_temperature = 0.9 * motor_temperature + (float)(motor_temp_adc * 500) / 1024;
         //current = 0.9 * current + 0.1 * ( (float)adc_value *5 / 1024);
         mpu9250_v2_read();
         mpu9250_readMagData();
