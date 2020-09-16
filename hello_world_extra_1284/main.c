@@ -23,15 +23,6 @@
 #define PIN_TEST PA6
 #define PIN_SPK PA7
 
-#define DDR_STEPPER DDRA
-#define PORT_STEPPER PORTA
-#define STEPPER_PIN PINA
-#define STEPPER_0_PIN PA0
-#define STEPPER_100_PIN PA1
-#define PCIE_STEPPER PCIE0
-#define PCMSK_STEPPER PCMSK1
-#define STEPPER_PCINT PCINT0_vect
-
 #define TRIGGER_PIN PB0
 #define ECHO_PIN PB1
 
@@ -41,6 +32,16 @@
 #define ASSISTED_SINK_MODE 1
 #define RETURN_HOME 2
 #define AWAITING_START 3
+
+
+#define DDR_STEPPER DDRA
+#define PORT_STEPPER PORTA
+#define STEPPER_PIN PINA
+#define STEPPER_0_PIN PA2
+#define STEPPER_100_PIN PA3
+#define PCIE_STEPPER PCIE0
+#define PCMSK_STEPPER PCMSK1
+#define STEPPER_PCINT PCINT0_vect
 
 /**
  * Opperation mode for the submarine:
@@ -87,11 +88,11 @@ void gpio_init()
     DDRC |= (1 << PUMP_PWM_PIN);
     PORTC &= ~(1 << PUMP_PWM_PIN);
 
-    DDR_STEPPER &= ~( 1 << STEPPER_0_PIN)
-    PORT_STEPPER &= ~( 1 << STEPPER_0_PIN)
+    DDR_STEPPER &= ~( 1 << STEPPER_0_PIN);
+    PORT_STEPPER &= ~( 1 << STEPPER_0_PIN);
 
-    DDR_STEPPER &= ~( 1 << STEPPER_100_PIN)
-    PORT_STEPPER &= ~( 1 << STEPPER_100_PIN)
+    DDR_STEPPER &= ~( 1 << STEPPER_100_PIN);
+    PORT_STEPPER &= ~( 1 << STEPPER_100_PIN);
 
     //interrupts on the echo pin
     PCICR |= (1 << PCIE1);
@@ -165,8 +166,9 @@ ISR(PCINT1_vect)
 }
 
 /*
-Stepper motor variables
+Stepper motor stuff
 */
+
 volatile uint16_t stepper_counter = 0;
 volatile uint8_t start_stepper_motor;
 
@@ -207,26 +209,11 @@ void stepper_calibrate()
         full_step();
         stepper_max_value++;
     }
-    sprintf(msg, "9000, stepper_max_value is: %d\r\n", stepper_max_value);
+
+    sprintf(msg, "9000, stepper_max_value is: %ld\r\n", stepper_max_value);
     USART0_print(msg);
     update_setting(STEPPER_MAX_VALUE, stepper_max_value);
     save_setting();
-}
-
-void init_adc()
-{
-    DDRA &= ~(1 << PA0);
-
-    ADMUX = 0;
-    ADMUX |= (1 << REFS0);
-
-    ADCSRA = 0;
-    /* set prescaler at 128 */
-    ADCSRA |= (7 << ADPS0);
-    /* enable ADC */
-    ADCSRA |= (1 << ADEN);
-    /*enable the interrupt*/
-    ADCSRA |= (1 << ADIE);
 }
 
 volatile uint8_t sw_mpu_read_trigger;
@@ -245,9 +232,68 @@ volatile uint8_t update_servos;
 volatile uint8_t update_pump;
 volatile uint8_t stepper_activated;
 
+/*
+ADC
+voltage / motor temperature
+*/
+
+void check_adc_module()
+{
+    uint16_t adc_val;
+
+    uint8_t ready = read_noblock_channel(&adc_val, 0);
+    if (ready)
+        // resistor divider R1 = 6k8, R2 = 1k
+        bat1 = 0.9 * bat1 + 0.1 * (to_volts(adc_val) * 7.8);
+}
+
+void read_adc()
+{
+    /* start conversion */
+    ADMUX &= ~( 1 << MUX0);
+    ADCSRA |= (1 << ADSC);
+}
+
+void read_temp_sensor()
+{
+    ADMUX |= ( 1 << MUX0);
+    ADCSRA |= (1 << ADSC);
+}
+
+void init_adc()
+{
+    DDRA &= ~(1 << PA0);
+    DDRA &= ~(1 << PA1);
+
+    ADMUX = 0;
+    ADMUX |= (1 << REFS0);
+
+    ADCSRA = 0;
+    /* set prescaler at 128 */
+    ADCSRA |= (7 << ADPS0);
+    /* enable ADC */
+    ADCSRA |= (1 << ADEN);
+    /*enable the interrupt*/
+    ADCSRA |= (1 << ADIE);
+}
+
+volatile uint8_t use_motors=0;
+float motor_temperature; 
+uint32_t motor_temp_adc;
+
+
 ISR(ADC_vect)
 {
-    adc_value = ADC;
+    if( !use_motors)
+    {
+        adc_value = ADC;
+        read_temp_sensor();
+        use_motors = 1;
+    } 
+    else {
+        motor_temp_adc = ADC;
+        use_motors = 0;
+    }
 }
 
 //pump trigger
@@ -445,7 +491,7 @@ void send_sensors_data()
     append_float(mesaj, 0);                             //6
     USART0_print(mesaj);        
     mesaj[0] = 0;
-    append_float(mesaj, 0);                             //7
+    append_float(mesaj, (float)stepper_counter/stepper_max_value);   //7
     // append_float(mesaj, current);
     append_float(mesaj, current);                       //8
     append_float(mesaj, 0);                             //9
@@ -454,7 +500,7 @@ void send_sensors_data()
     append_float(mesaj, starting_direction);            //12    
     append_float(mesaj, sonar_distance);                //13
     append_float(mesaj, bat1);                          //14
-    append_float(mesaj, 0);                             //15
+    append_float(mesaj, motor_temperature);                             //15
     strcat(mesaj, "\n");
     USART0_print(mesaj);
 }
@@ -604,7 +650,7 @@ void onparse(int cmd, long *data, int ndata)
         set_sail_engaged = 1;
         starting_direction = yaw - 180;
         if(starting_direction < 0)
-            starting_direction += 360
+            starting_direction += 360;
         beep();
         break;
     case HARBOUR:
@@ -646,22 +692,7 @@ void onparse(int cmd, long *data, int ndata)
         reset = 1;
         beep();
         break;
-}
-
-void check_adc_module()
-{
-    uint16_t adc_val;
-
-    uint8_t ready = read_noblock_channel(&adc_val, 0);
-    if (ready)
-        // resistor divider R1 = 6k8, R2 = 1k
-        bat1 = 0.9 * bat1 + 0.1 * (to_volts(adc_val) * 7.8);
-}
-
-void read_adc()
-{
-    /* start conversion */
-    ADCSRA |= (1 << ADSC);
+    }
 }
 
 void compute_sonar_distance()
@@ -730,6 +761,7 @@ void loop()
         check_adc_module();
         read_adc();
         current = 0.9 * current + (float)adc_value * 7.33 / 1024 - 3.67;
+        motor_temperature = 0.9 * motor_temperature + ((float)motor_temp_adc * 14) / 1024 - 4;
         //current = 0.9 * current + 0.1 * ( (float)adc_value *5 / 1024);
         mpu9250_v2_read();
         mpu9250_readMagData();
