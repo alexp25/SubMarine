@@ -7,7 +7,6 @@
 #define SET_SAIL 4
 #define HARBOUR 5
 #define STEPPER_SLIDER_IDX 4
-#define SLIDERS 1
 
 #define RETURN_HOME_BUTTON 102
 #define RETURN_CONTROL 103

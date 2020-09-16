@@ -561,7 +561,13 @@ void onparse(int cmd, long *data, int ndata)
         break;
     case CMD_POWER:
         raw_motors[0] = (data[1] < 0 ? 0 : data[1]) * 8 + ESC_START;
-        sink_angle = data[2];
+        stepper_target = ( (float)(data[2]+50) ) * get_settings_value_int(STEPPER_MAX_VALUE) / 100;
+        if( stepper_counter > stepper_target){
+            stepper_direction = 0;
+        }
+        else if( stepper_counter < stepper_target){
+            stepper_direction = 1;
+        }    
         break;
     case CARMA:
         raw_servos[0] = limit_servo(data[2] * 5 + carma_mid, carma_mid+300, carma_mid - 300);
@@ -640,17 +646,6 @@ void onparse(int cmd, long *data, int ndata)
         reset = 1;
         beep();
         break;
-    
-    case SLIDERS:
-        stepper_target = ( (float)(data[4]-1000) ) * get_settings_value_int(STEPPER_MAX_VALUE) / 1000;
-        if( stepper_counter > stepper_target){
-            stepper_direction = 0;
-        }
-        else if( stepper_counter < stepper_target){
-            stepper_direction = 1;
-        }
-        break;
-    }
 }
 
 void check_adc_module()
