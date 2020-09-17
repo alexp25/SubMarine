@@ -39,8 +39,10 @@
 #define STEPPER_PIN PINA
 #define STEPPER_0_PIN PA2
 #define STEPPER_100_PIN PA3
+#define STEPPER_0_PCINT PCINT2
+#define STEPPER_100_PCINT PCINT3
 #define PCIE_STEPPER PCIE0
-#define PCMSK_STEPPER PCMSK1
+#define PCMSK_STEPPER PCMSK0
 #define STEPPER_PCINT PCINT0_vect
 
 /**
@@ -89,10 +91,12 @@ void gpio_init()
     PORTC &= ~(1 << PUMP_PWM_PIN);
 
     DDR_STEPPER &= ~( 1 << STEPPER_0_PIN);
-    PORT_STEPPER &= ~( 1 << STEPPER_0_PIN);
+    // enable pull-up for switch
+    PORT_STEPPER |= ( 1 << STEPPER_0_PIN);
 
     DDR_STEPPER &= ~( 1 << STEPPER_100_PIN);
-    PORT_STEPPER &= ~( 1 << STEPPER_100_PIN);
+     // enable pull-up for switch
+    PORT_STEPPER |= ( 1 << STEPPER_100_PIN);
 
     //interrupts on the echo pin
     PCICR |= (1 << PCIE1);
@@ -100,8 +104,10 @@ void gpio_init()
 
     //interrupts for the stepper
     PCICR |= ( 1 << PCIE_STEPPER);
-    PCMSK_STEPPER |= ( 1 << STEPPER_0_PIN);
-    PCMSK_STEPPER |= ( 1 << STEPPER_100_PIN);
+    // PCMSK_STEPPER |= ( 1 << STEPPER_0_PIN);
+    // PCMSK_STEPPER |= ( 1 << STEPPER_100_PIN);
+    PCMSK_STEPPER |= ( 1 << STEPPER_0_PCINT);
+    PCMSK_STEPPER |= ( 1 << STEPPER_100_PCINT);
 }
 
 
@@ -170,7 +176,7 @@ Stepper motor stuff
 */
 
 volatile uint16_t stepper_counter = 0;
-volatile uint8_t start_stepper_motor;
+volatile uint8_t start_stepper_motor = 0;
 
 #define STEPPER_ZERO_TRIGGERED 0
 #define STEPPER_WORKING 2
@@ -181,15 +187,22 @@ uint32_t stepper_max_value;
 
 ISR(STEPPER_PCINT)
 {
-    if( STEPPER_PIN & ( 1 << STEPPER_0_PIN) )
+    // logic low trigger
+    if( (STEPPER_PIN & ( 1 << STEPPER_0_PIN)) == 0 )
     {
-        start_stepper_motor = 0;
-        stepper_state = STEPPER_ZERO_TRIGGERED;
+        if(stepper_state != STEPPER_ZERO_TRIGGERED){
+            // opreste doar daca nu s-a oprit deja (permite apoi miscarea in sens opus)
+            start_stepper_motor = 0;
+            stepper_state = STEPPER_ZERO_TRIGGERED;
+        }       
     }
-    else if( STEPPER_PIN & ( 1 << STEPPER_100_PIN) )
+    if( (STEPPER_PIN & ( 1 << STEPPER_100_PIN)) == 0 )
     {
-        start_stepper_motor = 0;
-        stepper_state = STEPPER_HUNDRED_TRGGERED;
+        if(stepper_state != STEPPER_HUNDRED_TRGGERED){
+            // opreste doar daca nu s-a oprit deja (permite apoi miscarea in sens opus)
+            start_stepper_motor = 0;
+            stepper_state = STEPPER_HUNDRED_TRGGERED;
+        }  
     } 
 }
 
@@ -200,14 +213,19 @@ void stepper_calibrate()
     stepper_max_value = 0;
     while(start_stepper_motor)
     {
+        _delay_ms(2);
         full_step();
+         wdt_reset();
     }
     stepper_direction = 0;
-    start_stepper_motor = 0;
+    start_stepper_motor = 1;
+
     while(start_stepper_motor)
     {
+        _delay_ms(2);
         full_step();
         stepper_max_value++;
+         wdt_reset();
     }
 
     sprintf(msg, "9000, stepper_max_value is: %ld\r\n", stepper_max_value);

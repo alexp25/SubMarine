@@ -4,8 +4,15 @@ int8_t stepper_step = 0, stepper_direction = 1;
 
 void init_stepper()
 {
-    DDRB |= (1 << PB0) | (1 << PB1) | (1 << PB2) | (1 << PB3);
-    PORTB &= ~(1 << PB0) & ~(1 << PB1) & ~(1 << PB2) & ~(1 << PB3);
+    DDRS1 |= (1 << PINS1);
+    DDRS2 |= (1 << PINS2);
+    DDRS3 |= (1 << PINS3);
+    DDRS4 |= (1 << PINS4);
+
+    PORTS1 &= ~(1 << PINS1);
+    PORTS2 &= ~(1 << PINS2);
+    PORTS3 &= ~(1 << PINS3);
+    PORTS4 &= ~(1 << PINS4);
 }
 
 void micro_step()
@@ -13,58 +20,58 @@ void micro_step()
     switch (stepper_step)
     {
     case 0:
-        PORTB &= ~(1 << PB0);
-        PORTB &= ~(1 << PB1);
-        PORTB &= ~(1 << PB2);
-        PORTB |= (1 << PB3);
+        PORTS1 &= ~(1 << PINS1);
+        PORTS2 &= ~(1 << PINS2);
+        PORTS3 &= ~(1 << PINS3);
+        PORTS4 |= (1 << PINS4);
         break;
     case 1:
-        PORTB &= ~(1 << PB0);
-        PORTB &= ~(1 << PB1);
-        PORTB |= (1 << PB2);
-        PORTB |= (1 << PB3);
+        PORTS1 &= ~(1 << PINS1);
+        PORTS2 &= ~(1 << PINS2);
+        PORTS3 |= (1 << PINS3);
+        PORTS4 |= (1 << PINS4);
         break;
     case 2:
-        PORTB &= ~(1 << PB0);
-        PORTB &= ~(1 << PB1);
-        PORTB |= (1 << PB2);
-        PORTB &= ~(1 << PB3);
+        PORTS1 &= ~(1 << PINS1);
+        PORTS2 &= ~(1 << PINS2);
+        PORTS3 |= (1 << PINS3);
+        PORTS4 &= ~(1 << PINS4);
         break;
     case 3:
-        PORTB &= ~(1 << PB0);
-        PORTB |= (1 << PB1);
-        PORTB |= (1 << PB2);
-        PORTB &= ~(1 << PB3);
+        PORTS1 &= ~(1 << PINS1);
+        PORTS2 |= (1 << PINS2);
+        PORTS3 |= (1 << PINS3);
+        PORTS4 &= ~(1 << PINS4);
         break;
     case 4:
-        PORTB &= ~(1 << PB0);
-        PORTB |= (1 << PB1);
-        PORTB &= ~(1 << PB2);
-        PORTB &= ~(1 << PB3);
+        PORTS1 &= ~(1 << PINS1);
+        PORTS2 |= (1 << PINS2);
+        PORTS3 &= ~(1 << PINS3);
+        PORTS4 &= ~(1 << PINS4);
         break;
     case 5:
-        PORTB |= (1 << PB0);
-        PORTB |= (1 << PB1);
-        PORTB &= ~(1 << PB2);
-        PORTB &= ~(1 << PB3);
+        PORTS1 |= (1 << PINS1);
+        PORTS2 |= (1 << PINS2);
+        PORTS3 &= ~(1 << PINS3);
+        PORTS4 &= ~(1 << PINS4);
         break;
     case 6:
-        PORTB |= (1 << PB0);
-        PORTB &= ~(1 << PB1);
-        PORTB &= ~(1 << PB2);
-        PORTB &= ~(1 << PB3);
+        PORTS1 |= (1 << PINS1);
+        PORTS2 &= ~(1 << PINS2);
+        PORTS3 &= ~(1 << PINS3);
+        PORTS4 &= ~(1 << PINS4);
         break;
     case 7:
-        PORTB |= (1 << PB0);
-        PORTB &= ~(1 << PB1);
-        PORTB &= ~(1 << PB2);
-        PORTB |= (1 << PB3);
+        PORTS1 |= (1 << PINS1);
+        PORTS2 &= ~(1 << PINS2);
+        PORTS3 &= ~(1 << PINS3);
+        PORTS4 |= (1 << PINS4);
         break;
     default:
-        PORTB &= ~(1 << PB0);
-        PORTB &= ~(1 << PB1);
-        PORTB &= ~(1 << PB2);
-        PORTB &= ~(1 << PB3);
+        PORTS1 &= ~(1 << PINS1);
+        PORTS2 &= ~(1 << PINS2);
+        PORTS3 &= ~(1 << PINS3);
+        PORTS4 &= ~(1 << PINS4);
         break;
     }
     stepper_set_dir(8);
@@ -76,34 +83,34 @@ void full_step()
     switch (stepper_step)
     {
     case 0:
-        PORTB &= ~(1 << PB0);
-        PORTB |= (1 << PB1);
-        PORTB |= (1 << PB2);
-        PORTB &= ~(1 << PB3);
+        PORTS1 &= ~(1 << PINS1);
+        PORTS2 |= (1 << PINS2);
+        PORTS3 |= (1 << PINS3);
+        PORTS4 &= ~(1 << PINS4);
         break;
     case 1:
-        PORTB &= ~(1 << PB0);
-        PORTB |= (1 << PB1);
-        PORTB &= ~(1 << PB2);
-        PORTB |= (1 << PB3);
+        PORTS1 &= ~(1 << PINS1);
+        PORTS2 |= (1 << PINS2);
+        PORTS3 &= ~(1 << PINS3);
+        PORTS4 |= (1 << PINS4);
         break;
     case 2:
-        PORTB |= (1 << PB0);
-        PORTB &= ~(1 << PB1);
-        PORTB &= ~(1 << PB2);
-        PORTB |= (1 << PB3);
+        PORTS1 |= (1 << PINS1);
+        PORTS2 &= ~(1 << PINS2);
+        PORTS3 &= ~(1 << PINS3);
+        PORTS4 |= (1 << PINS4);
         break;
     case 3:
-        PORTB |= (1 << PB0);
-        PORTB &= ~(1 << PB1);
-        PORTB |= (1 << PB2);
-        PORTB &= ~(1 << PB3);
+        PORTS1 |= (1 << PINS1);
+        PORTS2 &= ~(1 << PINS2);
+        PORTS3 |= (1 << PINS3);
+        PORTS4 &= ~(1 << PINS4);
         break;
     default:
-        PORTB &= ~(1 << PB0);
-        PORTB &= ~(1 << PB1);
-        PORTB &= ~(1 << PB2);
-        PORTB &= ~(1 << PB3);
+        PORTS1 &= ~(1 << PINS1);
+        PORTS2 &= ~(1 << PINS2);
+        PORTS3 &= ~(1 << PINS3);
+        PORTS4 &= ~(1 << PINS4);
         break;
     }
     stepper_set_dir(4);
@@ -115,34 +122,34 @@ void full_step()
     switch (stepper_step)
     {
     case 0:
-        PORTB |= (1 << PB0);
-        PORTB |= (1 << PB1);
-        PORTB &= ~(1 << PB2);
-        PORTB &= ~(1 << PB3);
+        PORTS1 |= (1 << PINS1);
+        PORTS2 |= (1 << PINS2);
+        PORTS3 &= ~(1 << PINS3);
+        PORTS4 &= ~(1 << PINS4);
         break;
     case 1:
-        PORTB &= ~(1 << PB0);
-        PORTB |= (1 << PB1);
-        PORTB |= (1 << PB2);
-        PORTB &= ~(1 << PB3);
+        PORTS1 &= ~(1 << PINS1);
+        PORTS2 |= (1 << PINS2);
+        PORTS3 |= (1 << PINS3);
+        PORTS4 &= ~(1 << PINS4);
         break;
     case 2:
-        PORTB &= ~(1 << PB0);
-        PORTB &= ~(1 << PB1);
-        PORTB |= (1 << PB2);
-        PORTB |= (1 << PB3);
+        PORTS1 &= ~(1 << PINS1);
+        PORTS2 &= ~(1 << PINS2);
+        PORTS3 |= (1 << PINS3);
+        PORTS4 |= (1 << PINS4);
         break;
     case 3:
-        PORTB |= (1 << PB0);
-        PORTB &= ~(1 << PB1);
-        PORTB &= ~(1 << PB2);
-        PORTB |= (1 << PB3);
+        PORTS1 |= (1 << PINS1);
+        PORTS2 &= ~(1 << PINS2);
+        PORTS3 &= ~(1 << PINS3);
+        PORTS4 |= (1 << PINS4);
         break;
     default:
-        PORTB &= ~(1 << PB0);
-        PORTB &= ~(1 << PB1);
-        PORTB &= ~(1 << PB2);
-        PORTB &= ~(1 << PB3);
+        PORTS1 &= ~(1 << PINS1);
+        PORTS2 &= ~(1 << PINS2);
+        PORTS3 &= ~(1 << PINS3);
+        PORTS4 &= ~(1 << PINS4);
         break;
     }
     stepper_set_dir(4);
@@ -151,10 +158,10 @@ void full_step()
 
 void stepper_stop()
 {
-    PORTB &= ~(1 << PB0);
-    PORTB &= ~(1 << PB1);
-    PORTB &= ~(1 << PB2);
-    PORTB &= ~(1 << PB3);
+    PORTS1 &= ~(1 << PINS1);
+    PORTS2 &= ~(1 << PINS2);
+    PORTS3 &= ~(1 << PINS3);
+    PORTS4 &= ~(1 << PINS4);
 }
 
 void stepper_set_dir(int nsteps)
