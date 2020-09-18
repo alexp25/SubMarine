@@ -53,7 +53,7 @@ void initialize_default()
     settings[ALPHA_ESC] = 9000;
     settings[ALPHA_PUMP_SOFT_START] = 9000;
     settings[PUMP_DUTY_CYCLE] = 25; 
-    settings[STEPPER_MAX_VALUE] = 100;
+    settings[STEPPER_MAX_VALUE] = 38000;
     settings[MOTOR_MAX_TEMP] = 70;
 }
 

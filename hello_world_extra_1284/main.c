@@ -171,69 +171,6 @@ ISR(PCINT1_vect)
     }
 }
 
-/*
-Stepper motor stuff
-*/
-
-volatile uint16_t stepper_counter = 0;
-volatile uint8_t start_stepper_motor = 0;
-
-#define STEPPER_ZERO_TRIGGERED 0
-#define STEPPER_WORKING 2
-#define STEPPER_HUNDRED_TRGGERED 1
-volatile uint8_t stepper_state = STEPPER_WORKING;
-uint16_t stepper_target = 0;
-uint32_t stepper_max_value;
-
-ISR(STEPPER_PCINT)
-{
-    // logic low trigger
-    if( (STEPPER_PIN & ( 1 << STEPPER_0_PIN)) == 0 )
-    {
-        if(stepper_state != STEPPER_ZERO_TRIGGERED){
-            // opreste doar daca nu s-a oprit deja (permite apoi miscarea in sens opus)
-            start_stepper_motor = 0;
-            stepper_state = STEPPER_ZERO_TRIGGERED;
-        }       
-    }
-    if( (STEPPER_PIN & ( 1 << STEPPER_100_PIN)) == 0 )
-    {
-        if(stepper_state != STEPPER_HUNDRED_TRGGERED){
-            // opreste doar daca nu s-a oprit deja (permite apoi miscarea in sens opus)
-            start_stepper_motor = 0;
-            stepper_state = STEPPER_HUNDRED_TRGGERED;
-        }  
-    } 
-}
-
-void stepper_calibrate()
-{
-    USART0_print("9000,starting stepper calibration\r\n");
-    start_stepper_motor = 1;
-    stepper_max_value = 0;
-    while(start_stepper_motor)
-    {
-        _delay_ms(2);
-        full_step();
-         wdt_reset();
-    }
-    stepper_direction = 0;
-    start_stepper_motor = 1;
-
-    while(start_stepper_motor)
-    {
-        _delay_ms(2);
-        full_step();
-        stepper_max_value++;
-         wdt_reset();
-    }
-
-    sprintf(msg, "9000, stepper_max_value is: %ld\r\n", stepper_max_value);
-    USART0_print(msg);
-    update_setting(STEPPER_MAX_VALUE, stepper_max_value);
-    save_setting();
-}
-
 volatile uint8_t sw_mpu_read_trigger;
 volatile uint8_t sw_sonar_activation;
 volatile uint16_t sw_buzzer_activation;
@@ -375,6 +312,92 @@ ISR(TIMER0_COMPB_vect)
         PORTC &= ~(1 << PUMP_PWM_PIN);
 }
 
+
+/*
+Stepper motor stuff
+*/
+
+volatile uint16_t stepper_counter = 0;
+volatile uint8_t start_stepper_motor = 0;
+
+#define STEPPER_ZERO_TRIGGERED 0
+#define STEPPER_WORKING 2
+#define STEPPER_HUNDRED_TRGGERED 1
+volatile uint8_t stepper_state = STEPPER_WORKING;
+uint16_t stepper_target = 0;
+uint32_t stepper_max_value;
+
+ISR(STEPPER_PCINT)
+{
+    // logic low trigger
+    if( (STEPPER_PIN & ( 1 << STEPPER_0_PIN)) == 0 )
+    {
+        if(stepper_state != STEPPER_ZERO_TRIGGERED){
+            // opreste doar daca nu s-a oprit deja (permite apoi miscarea in sens opus)
+            start_stepper_motor = 0;
+            stepper_state = STEPPER_ZERO_TRIGGERED;
+        }       
+    }
+    if( (STEPPER_PIN & ( 1 << STEPPER_100_PIN)) == 0 )
+    {
+        if(stepper_state != STEPPER_HUNDRED_TRGGERED){
+            // opreste doar daca nu s-a oprit deja (permite apoi miscarea in sens opus)
+            start_stepper_motor = 0;
+            stepper_state = STEPPER_HUNDRED_TRGGERED;
+        }  
+    } 
+}
+
+void stepper_calibrate()
+{
+    USART0_print("9000,starting stepper calibration\r\n");
+    start_stepper_motor = 1;
+    stepper_max_value = 0;
+    while(start_stepper_motor)
+    {
+        if(stepper_activated)
+        {
+            full_step();
+            stepper_activated = 0;
+        }
+    }
+    stepper_direction = 0;
+    start_stepper_motor = 1;
+
+    while(start_stepper_motor)
+    {
+        if(stepper_activated) {
+            full_step();
+            stepper_max_value++;
+        }
+    }
+
+    sprintf(msg, "9000, stepper_max_value is: %ld\r\n", stepper_max_value);
+    USART0_print(msg);
+    update_setting(STEPPER_MAX_VALUE, stepper_max_value);
+    save_setting();
+}
+
+void stepper_return_0(uint8_t blocking)
+{
+    if( (STEPPER_PIN & ( 1 << STEPPER_0_PIN)) == 0)
+        return;
+
+    stepper_direction = 0;
+    start_stepper_motor = 1;
+
+    if(blocking)
+    {
+        while(start_stepper_motor)
+        {
+            if(stepper_activated) {
+                full_step();
+                stepper_max_value++;
+            }
+        }
+    }
+}
+
 #define ESC_STOP 1000
 #define ESC_START 1150
 
@@ -454,6 +477,7 @@ void setup()
     setup_timer();
 
     //setup stepper
+    stepper_return_0(true);
     init_stepper();
 
     //stepper_motor_calibration
@@ -710,6 +734,10 @@ void onparse(int cmd, long *data, int ndata)
         reset = 1;
         beep();
         break;
+
+    case CALIBRATE_PUMP:
+        stepper_calibrate();
+        break;
     }
 }
 
@@ -863,6 +891,7 @@ void loop()
         {
             lost_connection_counter++;
             opperation_mode = RETURN_HOME;
+            stepper_return_0(false); //bring it to the surface
             return_home_initialization();
         }
     }
@@ -915,7 +944,8 @@ void loop()
         stepper_activated = 0;
 
         //if the target is reached, stop the process
-        if( stepper_counter == stepper_target)
+        if( ( stepper_direction == 1 && stepper_counter >= stepper_target) ||
+            ( stepper_direction == 0 && stepper_counter <= stepper_target) )
         {
             start_stepper_motor = 0;
             stepper_state = stepper_direction;
