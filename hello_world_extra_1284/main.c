@@ -355,6 +355,7 @@ void stepper_calibrate()
     stepper_max_value = 0;
     while(start_stepper_motor)
     {
+        wdt_reset();
         if(stepper_activated)
         {
             full_step();
@@ -366,6 +367,7 @@ void stepper_calibrate()
 
     while(start_stepper_motor)
     {
+        wdt_reset();
         if(stepper_activated) {
             full_step();
             stepper_max_value++;
@@ -390,6 +392,7 @@ void stepper_return_0(uint8_t blocking)
     {
         while(start_stepper_motor)
         {
+            wdt_reset();
             if(stepper_activated) {
                 full_step();
                 stepper_max_value++;
@@ -652,9 +655,11 @@ void onparse(int cmd, long *data, int ndata)
         stepper_target = ( (float)(data[2]+50) ) * get_settings_value_int(STEPPER_MAX_VALUE) / 100;
         if( stepper_counter > stepper_target){
             stepper_direction = 0;
+            start_stepper_motor = 1;
         }
         else if( stepper_counter < stepper_target){
             stepper_direction = 1;
+            start_stepper_motor = 1;
         }    
         break;
     case CARMA:
@@ -948,19 +953,20 @@ void loop()
             ( stepper_direction == 0 && stepper_counter <= stepper_target) )
         {
             start_stepper_motor = 0;
-            stepper_state = stepper_direction;
+            //stepper_state = stepper_direction;
         }
 
         if( start_stepper_motor) //if the target has not been reached, do a step
         {
+            stepper_state = STEPPER_WORKING;
             stepper_counter += stepper_direction == 1 ? 1 : -1;
             full_step();
         } 
-        else if( stepper_state != stepper_direction) {  //if the direction has been changed, do a step 
-            start_stepper_motor = 1;                    //and start moving
-            stepper_counter += stepper_direction == 1 ? 1 : -1;
-            full_step();
-        } 
+        // else if( stepper_state != stepper_direction) {  //if the direction has been changed, do a step 
+        //     start_stepper_motor = 1;                    //and start moving
+        //     stepper_counter += stepper_direction == 1 ? 1 : -1;
+        //     full_step();
+        // } 
     }
 
     if (opperation_mode == ASSISTED_SINK_MODE)
