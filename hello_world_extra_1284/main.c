@@ -217,8 +217,8 @@ void read_temp_sensor()
 
 void init_adc()
 {
-    DDRA &= ~(1 << PA0);
-    DDRA &= ~(1 << PA1);
+    DDRA &= ~(1 << PA0); //current sensor
+    DDRA &= ~(1 << PA1); //temperature sensor
 
     ADMUX = 0;
     ADMUX |= (1 << REFS0);
@@ -317,7 +317,7 @@ ISR(TIMER0_COMPB_vect)
 Stepper motor stuff
 */
 
-volatile uint16_t stepper_counter = 0;
+volatile uint32_t stepper_counter = 0;
 volatile uint8_t start_stepper_motor = 0;
 
 #define STEPPER_ZERO_TRIGGERED 0
@@ -389,13 +389,13 @@ void stepper_return_0(uint8_t blocking)
     start_stepper_motor = 1;
 
     if(blocking)
-    {
+    { 
         while(start_stepper_motor)
         {
             wdt_reset();
             if(stepper_activated) {
+                stepper_activated = 0;
                 full_step();
-                stepper_max_value++;
             }
         }
     }
@@ -480,11 +480,13 @@ void setup()
     setup_timer();
 
     //setup stepper
-    stepper_return_0(true);
     init_stepper();
+    stepper_return_0(true);
+    stepper_direction = 1;
+    stepper_target = get_settings_value_int(STEPPER_MAX_VALUE)/2;
 
     //stepper_motor_calibration
-    stepper_calibrate();
+    //stepper_calibrate();
 
     opperation_mode = AWAITING_START;
 
@@ -536,7 +538,7 @@ void send_sensors_data()
     append_float(mesaj, 0);                             //6
     USART0_print(mesaj);        
     mesaj[0] = 0;
-    append_float(mesaj, (float)stepper_counter/stepper_max_value);   //7
+    append_float(mesaj, ((float)stepper_counter)/stepper_max_value);   //7
     // append_float(mesaj, current);
     append_float(mesaj, current);                       //8
     append_float(mesaj, 0);                             //9
@@ -671,6 +673,10 @@ void onparse(int cmd, long *data, int ndata)
         break;
     case CMD_UPDATE_SETTINGS:
         update_setting(data[1], data[2]);
+        if( data[1] == CARMA_POS)
+            raw_servos[0] = data[2];
+        if( data[1] == WING_FLAPS_POS)
+            raw_servos[1] = data[2];
         beep();        
         break;
     case CMD_RESET_DEFAULTS:
@@ -811,8 +817,9 @@ void loop()
         ts_start = t1;
         check_adc_module();
         read_adc();
-        current = 0.9 * current + (float)adc_value * 7.33 / 1024 - 3.67;
-        motor_temperature = 0.9 * motor_temperature + (float)(motor_temp_adc * 500) / 1024;
+        //current = 0.9 * current + (float)adc_value * 7.33 / 1024 - 3.67;
+        current = 0.9 * current + 0.1 * ( (float)adc_value * 5000 / 1024 - 2500.f) / 40;
+        motor_temperature = 0.9 * motor_temperature + (float)(motor_temp_adc * 50) / 1024;
         //current = 0.9 * current + 0.1 * ( (float)adc_value *5 / 1024);
         mpu9250_v2_read();
         mpu9250_readMagData();
@@ -928,7 +935,7 @@ void loop()
         if(opperation_mode != AWAITING_START)
         {
             alph = get_settings_value_float(ALPHA_ESC);
-            if( motor_temperature > get_settings_value_float(MOTOR_MAX_TEMP))
+            if( motor_temperature > get_settings_value_float(MOTOR_MAX_TEMP) && motor_temperature != 0)
                 raw_motors[0] = ESC_START;
             poz_motors[0] = alph * poz_motors[0] + (1 - alph) * raw_motors[0];
             servo_set_cmd(2, poz_motors[0]);
