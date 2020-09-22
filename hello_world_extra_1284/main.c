@@ -18,6 +18,8 @@
 #include "time_utils.h"
 #include "stepper.h"
 
+// #define ENABLE_SUB 1
+
 #define DDR_TEST DDRA
 #define PORT_TEST PORTA
 #define PIN_TEST PA6
@@ -102,12 +104,14 @@ void gpio_init()
     PCICR |= (1 << PCIE1);
     PCMSK1 |= (1 << PCINT9);
 
+#ifdef ENABLE_SUB
     //interrupts for the stepper
     PCICR |= ( 1 << PCIE_STEPPER);
     // PCMSK_STEPPER |= ( 1 << STEPPER_0_PIN);
     // PCMSK_STEPPER |= ( 1 << STEPPER_100_PIN);
     PCMSK_STEPPER |= ( 1 << STEPPER_0_PCINT);
     PCMSK_STEPPER |= ( 1 << STEPPER_100_PCINT);
+#endif
 }
 
 
@@ -234,7 +238,7 @@ void init_adc()
 
 volatile uint8_t use_motors=0;
 float motor_temperature; 
-uint32_t motor_temp_adc;
+volatile uint16_t motor_temp_adc;
 
 
 ISR(ADC_vect)
@@ -479,6 +483,7 @@ void setup()
     // timekeeper
     setup_timer();
 
+    #ifdef ENABLE_SUB
     //setup stepper
     init_stepper();
     stepper_return_0(true);
@@ -487,6 +492,8 @@ void setup()
 
     //stepper_motor_calibration
     //stepper_calibrate();
+
+    #endif  
 
     opperation_mode = AWAITING_START;
 
@@ -538,7 +545,7 @@ void send_sensors_data()
     append_float(mesaj, 0);                             //6
     USART0_print(mesaj);        
     mesaj[0] = 0;
-    append_float(mesaj, ((float)stepper_counter)/stepper_max_value);   //7
+    append_float(mesaj, ((float)stepper_counter)/stepper_max_value * 100);   //7
     // append_float(mesaj, current);
     append_float(mesaj, current);                       //8
     append_float(mesaj, 0);                             //9
@@ -654,6 +661,7 @@ void onparse(int cmd, long *data, int ndata)
         break;
     case CMD_POWER:
         raw_motors[0] = (data[1] < 0 ? 0 : data[1]) * 8 + ESC_START;
+        #ifdef ENABLE_SUB
         stepper_target = ( (float)(data[2]+50) ) * get_settings_value_int(STEPPER_MAX_VALUE) / 100;
         if( stepper_counter > stepper_target){
             stepper_direction = 0;
@@ -663,6 +671,7 @@ void onparse(int cmd, long *data, int ndata)
             stepper_direction = 1;
             start_stepper_motor = 1;
         }    
+        #endif
         break;
     case CARMA:
         raw_servos[0] = limit_servo(data[2] * 5 + carma_mid, carma_mid+300, carma_mid - 300);
@@ -747,7 +756,9 @@ void onparse(int cmd, long *data, int ndata)
         break;
 
     case CALIBRATE_PUMP:
+    #ifdef ENABLE_SUB
         stepper_calibrate();
+    #endif
         break;
     }
 }
@@ -818,8 +829,11 @@ void loop()
         check_adc_module();
         read_adc();
         //current = 0.9 * current + (float)adc_value * 7.33 / 1024 - 3.67;
-        current = 0.9 * current + 0.1 * ( (float)adc_value * 5000 / 1024 - 2500.f) / 40;
-        motor_temperature = 0.9 * motor_temperature + (float)(motor_temp_adc * 50) / 1024;
+        // /40 => *0.025
+        current = 0.9 * current + 0.1 * ( (uint32_t)adc_value * 5000.0 / 1024 - 2500) * 0.025;
+        // 2C + 10 mV/C
+        // adc * 5000 / 1024 mV
+        motor_temperature = 0.9 * motor_temperature + (2 + (uint32_t)motor_temp_adc * 500.0 / 1024) * 0.1;
         //current = 0.9 * current + 0.1 * ( (float)adc_value *5 / 1024);
         mpu9250_v2_read();
         mpu9250_readMagData();
@@ -903,7 +917,9 @@ void loop()
         {
             lost_connection_counter++;
             opperation_mode = RETURN_HOME;
+            #ifdef ENABLE_SUB
             stepper_return_0(false); //bring it to the surface
+            #endif
             return_home_initialization();
         }
     }
@@ -950,6 +966,7 @@ void loop()
     }
 
     
+    #ifdef ENABLE_SUB
     if(stepper_activated == 1)
     {
         //a stepper step has been triggered( at 200HZ)
@@ -975,6 +992,7 @@ void loop()
         //     full_step();
         // } 
     }
+    #endif
 
     if (opperation_mode == ASSISTED_SINK_MODE)
     {
