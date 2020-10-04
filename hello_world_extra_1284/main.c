@@ -78,6 +78,8 @@ float dt = 0.02;
 uint8_t return_home_engaged = 0;
 uint8_t set_sail_engaged = 0;
 
+#define TEST_ALPHA 0.9
+
 void gpio_init()
 {
     DDR_TEST |= (1 << PIN_TEST) | (1 << PIN_SPK);
@@ -199,11 +201,12 @@ voltage / motor temperature
 void check_adc_module()
 {
     uint16_t adc_val;
-
+    double alpha = get_settings_value_float(ALPHA_SENSORS);
     uint8_t ready = read_noblock_channel(&adc_val, 0);
-    if (ready)
+    if (ready){
         // resistor divider R1 = 6k8, R2 = 1k
-        bat1 = 0.9 * bat1 + 0.1 * (to_volts(adc_val) * 7.8);
+        bat1 = alpha * bat1 + (1-alpha) * (to_volts(adc_val) * 7.8);
+    }
 }
 
 void read_adc()
@@ -828,13 +831,18 @@ void loop()
         ts_start = t1;
         check_adc_module();
         read_adc();
-        //current = 0.9 * current + (float)adc_value * 7.33 / 1024 - 3.67;
         // /40 => *0.025
-        current = 0.9 * current + 0.1 * ( (uint32_t)adc_value * 5000.0 / 1024 - 2500) * 0.025;
+        double alpha = get_settings_value_float(ALPHA_SENSORS);
+
+        double current_crt = ( (uint32_t)adc_value * 5000.0 / 1024 - 2500) * 0.025; 
+        if(get_settings_value_int(CURRENT_DIR)==1){
+            current_crt = -current_crt;
+        }
+        current = alpha * current + (1-alpha) * current_crt;
         // 2C + 10 mV/C
         // adc * 5000 / 1024 mV
-        motor_temperature = 0.9 * motor_temperature + (2 + (uint32_t)motor_temp_adc * 500.0 / 1024) * 0.1;
-        //current = 0.9 * current + 0.1 * ( (float)adc_value *5 / 1024);
+        motor_temperature = alpha * motor_temperature + (2 + (uint32_t)motor_temp_adc * 500.0 / 1024) * (1-alpha);
+        //current = alpha * current + (1-alpha) * ( (float)adc_value *5 / 1024);
         mpu9250_v2_read();
         mpu9250_readMagData();
         mpu9250_correct_errors();
@@ -951,7 +959,7 @@ void loop()
         if(opperation_mode != AWAITING_START)
         {
             alph = get_settings_value_float(ALPHA_ESC);
-            if( motor_temperature > get_settings_value_float(MOTOR_MAX_TEMP) && motor_temperature != 0)
+            if( motor_temperature > get_settings_value_int(MOTOR_MAX_TEMP) && motor_temperature != 0)
                 raw_motors[0] = ESC_START;
             poz_motors[0] = alph * poz_motors[0] + (1 - alph) * raw_motors[0];
             servo_set_cmd(2, poz_motors[0]);

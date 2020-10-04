@@ -1,5 +1,8 @@
 #include "settings.h"
 
+#define SETTINGS_FLOAT 0
+#define SETTINGS_INT 1
+
 int32_t settings[NUM_SETTINGS];
 float settings_float[NUM_SET_FLOAT];
 int32_t settings_int[NUM_SET_INT];
@@ -52,9 +55,11 @@ void initialize_default()
     settings[ALPHA_WINGS_SERVO] = 9000;
     settings[ALPHA_ESC] = 9000;
     settings[ALPHA_PUMP_SOFT_START] = 9000;
+    settings[ALPHA_SENSORS] = 9500;
     settings[PUMP_DUTY_CYCLE] = 25; 
     settings[STEPPER_MAX_VALUE] = 38000;
-    settings[MOTOR_MAX_TEMP] = 700000;
+    settings[MOTOR_MAX_TEMP] = 65;
+    settings[CURRENT_DIR] = 1;    
 }
 
 void initialize_settings()
@@ -142,8 +147,14 @@ void initialize_settings()
     settings_type[STEPPER_MAX_VALUE] = 1;
     settings_idx[STEPPER_MAX_VALUE] = 8;
 
-    settings_type[MOTOR_MAX_TEMP] = 0;
+    settings_type[MOTOR_MAX_TEMP] = 1;
     settings_idx[MOTOR_MAX_TEMP] = 15;
+
+    settings_type[CURRENT_DIR] = 1;
+    settings_idx[CURRENT_DIR] = 9;
+
+    settings_type[ALPHA_SENSORS] = 0;
+    settings_idx[ALPHA_SENSORS] = 16;
 
     update_settings_type_values();
 }
@@ -226,6 +237,9 @@ const char settings_label_22[] = "ALPHA_PUMP_SOFT_START";
 const char settings_label_23[] = "PUMP_DUTY_CYCLE";
 const char settings_label_24[] = "STEPPER_MAX_CYCLES";
 const char settings_label_25[] = "MOTOR_MAX_TEMPERATURE";
+const char settings_label_26[] = "CURRENT_DIR";
+const char settings_label_27[] = "ALPHA_SENSORS";
+const char settings_label_28[] = "N/A";
 
 const char *const settings_labels[] =
     {
@@ -264,4 +278,8 @@ const char *const settings_labels[] =
 
         settings_label_23,
         settings_label_24,
-        settings_label_25};
+        settings_label_25,
+        settings_label_26,
+        settings_label_27,
+        settings_label_28
+        };
