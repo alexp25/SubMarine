@@ -429,9 +429,9 @@ void initialize_servos()
     uint32_t carma_mid = get_settings_value_int(CARMA_POS);
     uint32_t wing_flaps_mid = get_settings_value_int(WING_FLAPS_POS);
     
-    servo_set_cmd(0, carma_mid);
-    servo_set_cmd(1, wing_flaps_mid);
-    servo_set_cmd(2, ESC_STOP);
+    servo_set_cmd(SERVO_IDX_CARMA, carma_mid);
+    servo_set_cmd(SERVO_IDX_FLAPS, wing_flaps_mid);
+    servo_set_cmd(SERVO_IDX_MOTOR, ESC_STOP);
 
     poz_servos[0] = raw_servos[0] = carma_mid;
     poz_servos[1] = raw_servos[1] = wing_flaps_mid;
@@ -598,16 +598,18 @@ void return_home()
 {
     //compute the angle of ze carma so that the boat will return home
     if(sonar_distance < get_settings_value_float(RETURN_HOME_DISTANCE_POS)) {
-        raw_motors[0] = poz_motors[0] = ESC_STOP;
-        servo_set_cmd(2, poz_motors[0]);
+        // raw_motors[0] = poz_motors[0] = ESC_STOP;
+        // servo_set_cmd(SERVO_IDX_MOTOR, poz_motors[0]);
+        raw_motors[0] = ESC_STOP;
     }
     else
     {
-        raw_motors[0] = poz_motors[0] = get_settings_value_int(MOTOR_RETURN_POWER_POS);
-        servo_set_cmd(2, poz_motors[0]);
+        // raw_motors[0] = poz_motors[0] = get_settings_value_int(MOTOR_RETURN_POWER_POS);
+        raw_motors[0] = get_settings_value_int(MOTOR_RETURN_POWER_POS);
+        // servo_set_cmd(SERVO_IDX_MOTOR, poz_motors[0]);
         uint32_t carma_mid = get_settings_value_int(CARMA_POS);
         uint32_t up_carma = update_carma(&return_home_context, yaw) * 5 + carma_mid;
-        raw_servos[0] = limit_servo(up_carma, carma_mid + 300, carma_mid - 300);
+        // raw_servos[0] = limit_servo(up_carma, carma_mid + 300, carma_mid - 300);
     }
 }
 
@@ -618,10 +620,11 @@ void return_home_initialization()
     initialize_pid_contex(&return_home_context, dt, starting_direction);
     load_weights(&return_home_context, get_settings_value_float(KP_POS), get_settings_value_float(KI_POS),
                     get_settings_value_float(KD_POS));
-    raw_motors[0] = poz_motors[0] = get_settings_value_int(MOTOR_RETURN_POWER_POS);
+    // raw_motors[0] = poz_motors[0] = get_settings_value_int(MOTOR_RETURN_POWER_POS);
+    raw_motors[0] = get_settings_value_int(MOTOR_RETURN_POWER_POS);
     raw_servos[0] = get_settings_value_int(CARMA_POS);
     raw_servos[1] = get_settings_value_int(WING_FLAPS_POS);
-    servo_set_cmd(2, poz_motors[0]); //set a low speed for returning home
+    // servo_set_cmd(SERVO_IDX_MOTOR, poz_motors[0]); //set a low speed for returning home
 }
 
 void beep()
@@ -711,7 +714,7 @@ void onparse(int cmd, long *data, int ndata)
         opperation_mode = NORMAL_MODE;
         poz_motors[0] = ESC_START;
         raw_motors[0] = ESC_START;
-        servo_set_cmd(2, poz_motors[0]);
+        servo_set_cmd(SERVO_IDX_MOTOR, poz_motors[0]);
         set_sail_engaged = 1;
         starting_direction = yaw - 180;
         if(starting_direction < 0)
@@ -722,7 +725,7 @@ void onparse(int cmd, long *data, int ndata)
         opperation_mode = AWAITING_START;
         poz_motors[0] = ESC_STOP;
         raw_motors[0] = ESC_STOP;
-        servo_set_cmd(2, poz_motors[0]);
+        servo_set_cmd(SERVO_IDX_MOTOR, poz_motors[0]);
         set_sail_engaged = 0;
         beep();
         break;
@@ -903,8 +906,9 @@ void loop()
             lost_connection_counter = 0;
             if( opperation_mode == RETURN_HOME && !return_home_engaged)
             {
-                raw_motors[0] = poz_motors[0] = ESC_START;
-                servo_set_cmd(2, ESC_START);
+                // raw_motors[0] = poz_motors[0] = ESC_START;
+                raw_motors[0] = ESC_START;
+                // servo_set_cmd(SERVO_IDX_MOTOR, ESC_START);
                 opperation_mode = NORMAL_MODE;
             }
         }
@@ -916,8 +920,9 @@ void loop()
         //after 2 seconds with no signal from the bluetooth, turn off the motor
         if (lost_connection_counter == 100)
         {
-            raw_motors[0] = poz_motors[0] = ESC_STOP;
-            servo_set_cmd(2, poz_motors[0]);
+            // raw_motors[0] = poz_motors[0] = ESC_STOP;
+            raw_motors[0] = ESC_STOP;
+            // servo_set_cmd(SERVO_IDX_MOTOR, poz_motors[0]);
         }
 
         //after 10 more seconds, start the return home procedure
@@ -949,12 +954,12 @@ void loop()
 
         alph = get_settings_value_float(ALPHA_CARMA_SERVO);
         poz_servos[0] = (int)(alph * (float)poz_servos[0] + (1 - alph) * (float)raw_servos[0]);
-        servo_set_cmd(0, poz_servos[0]);
+        servo_set_cmd(SERVO_IDX_CARMA, poz_servos[0]);
 
         alph = get_settings_value_float(ALPHA_WINGS_SERVO);
         poz_servos[1] = (int)(alph * (float)poz_servos[1] + (1 - alph) * (float)raw_servos[1]);
         
-        servo_set_cmd(1, poz_servos[1]);
+        servo_set_cmd(SERVO_IDX_FLAPS, poz_servos[1]);
 
         if(opperation_mode != AWAITING_START)
         {
@@ -962,7 +967,7 @@ void loop()
             if( motor_temperature > get_settings_value_int(MOTOR_MAX_TEMP) && motor_temperature != 0)
                 raw_motors[0] = ESC_START;
             poz_motors[0] = alph * poz_motors[0] + (1 - alph) * raw_motors[0];
-            servo_set_cmd(2, poz_motors[0]);
+            servo_set_cmd(SERVO_IDX_MOTOR, poz_motors[0]);
         }
     }
 

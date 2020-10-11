@@ -48,8 +48,10 @@ void initialize_default()
     settings[KD_POS] = 0;
     settings[CARMA_POS] = 1500;
     settings[WING_FLAPS_POS] = 1500;
-    settings[MOTOR_RETURN_POWER_POS] = 1500;
-    settings[RETURN_HOME_DISTANCE_POS] = 500000;
+    // settings[MOTOR_RETURN_POWER_POS] = 1500;
+    settings[MOTOR_RETURN_POWER_POS] = 1000; // stop
+    // settings[RETURN_HOME_DISTANCE_POS] = 500000;
+    settings[RETURN_HOME_DISTANCE_POS] = 0; // disable obstacle avoidance
     settings[ALPHA_CARMA_PID] = 9000;
     settings[ALPHA_CARMA_SERVO] = 9000;
     settings[ALPHA_WINGS_SERVO] = 9000;

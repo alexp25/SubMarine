@@ -1,5 +1,9 @@
 #include <stdint.h>
 
+#define SERVO_IDX_MOTOR 2
+#define SERVO_IDX_FLAPS 1
+#define SERVO_IDX_CARMA 0
+
 #define CARMA 2
 #define CMD_POWER 6
 #define WING_FLAPS 7
