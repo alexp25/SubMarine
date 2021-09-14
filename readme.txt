@@ -6,4 +6,5 @@ located in C:\WinAVR-20100110\bin\avrdude.conf
 avr setup:
 fuses (extended high low) 0xFF 0x98 0xFF
 lock bits 0xFF
-![demo](https://github.com/alexp25/SubMarine/blob/master/output.gif)
+
+![demo](output.gif)
