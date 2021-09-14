@@ -1,12 +1,8 @@
 Submarine source code
 
-1. add 1284 definition (avrdude.add.conf) at the end of avrdude.conf
-located in C:\WinAVR-20100110\bin\avrdude.conf
+This repo contains the code for our summer submarine project.
 
-2. reset before uploading with avrdude
+The code we've used is the one in the hellow_world_extra_1284 folder. 
 
-avr setup:
-fuses (extended high low) 0xFF 0x98 0xFF
-lock bits 0xFF
-
+Here is a demo of the final, working embedded project:
 ![demo](output.gif)
