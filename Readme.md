@@ -7,3 +7,5 @@ The code we've used is the one in the hellow_world_extra_1284 folder.
 Here is a demo of the final, working embedded project:
 
 ![demo](output.gif)
+
+More on: https://www.youtube.com/watch?v=aQS2M7reS2o
